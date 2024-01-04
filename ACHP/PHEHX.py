@@ -15,7 +15,7 @@ class PHEHXClass():
         
         Each fluid can:
         a) Not change phase
-        c) Evaporate 
+        b) Evaporate 
         c) Condense
         
         Possibility matrix
@@ -241,28 +241,24 @@ class PHEHXClass():
         self.hout_h=EnthalpyList_h[0]
         self.hout_c=EnthalpyList_c[1]
         
-        #Call AbstractState
-        AS_h = self.AS_h
-        AS_c = self.AS_c
-        
         #Find the phase boundaries that exist, and add them to lists
-        if 'IncompressibleBackend' in AS_h.backend_name() or self.pin_h > AS_h.p_critical():
+        if 'IncompressibleBackend' in self.AS_h.backend_name() or self.pin_h > self.AS_h.p_critical():
             hsatL_h=1e9
             hsatV_h=1e9
         else:
-            AS_h.update(CP.DmassT_INPUTS, self.rhosatL_h, self.Tbubble_h)
-            hsatL_h=AS_h.hmass() #[J/kg]
-            AS_h.update(CP.DmassT_INPUTS, self.rhosatV_h, self.Tdew_h)
-            hsatV_h=AS_h.hmass() #[J/kg]
+            self.AS_h.update(CP.DmassT_INPUTS, self.rhosatL_h, self.Tbubble_h)
+            hsatL_h=self.AS_h.hmass() #[J/kg]
+            self.AS_h.update(CP.DmassT_INPUTS, self.rhosatV_h, self.Tdew_h)
+            hsatV_h=self.AS_h.hmass() #[J/kg]
         
-        if 'IncompressibleBackend' in AS_c.backend_name() or self.pin_c > AS_c.p_critical():
+        if 'IncompressibleBackend' in self.AS_c.backend_name() or self.pin_c > self.AS_c.p_critical():
             hsatL_c=1e9
             hsatV_c=1e9
         else:
-            AS_c.update(CP.DmassT_INPUTS, self.rhosatL_c, self.Tbubble_c)
-            hsatL_c=AS_c.hmass() #[J/kg]
-            AS_c.update(CP.DmassT_INPUTS, self.rhosatV_c, self.Tdew_c)
-            hsatV_c=AS_c.hmass() #[J/kg]
+            self.AS_c.update(CP.DmassT_INPUTS, self.rhosatL_c, self.Tbubble_c)
+            hsatL_c=self.AS_c.hmass() #[J/kg]
+            self.AS_c.update(CP.DmassT_INPUTS, self.rhosatV_c, self.Tdew_c)
+            hsatV_c=self.AS_c.hmass() #[J/kg]
         
         # Check whether the enthalpy boundaries are within the bounds set by 
         # the imposed amount of heat transfer
@@ -308,9 +304,6 @@ class PHEHXClass():
         Combine all the cells to calculate overall parameters like pressure drop
         and fraction of heat exchanger in two-phase on both sides
         """
-        #AbstractState
-        AS_c = self.AS_c
-        AS_h = self.AS_h
         
         def collect(cellList,tag,tagvalue,out):
             collectList=[]
@@ -485,22 +478,22 @@ class PHEHXClass():
         self.Tout_c,self.rhoout_c=TrhoPhase_ph(self.AS_c,self.pin_c,self.hout_c,self.Tbubble_c,self.Tdew_c,self.rhosatL_c,self.rhosatV_c)[0:2]
         
         #cold-side outlet entropy, subcooling or approach temp (if applicable)
-        if 'IncompressibleBackend' in AS_c.backend_name():
-            AS_c.update(CP.PT_INPUTS, self.pin_c, self.Tout_c)
-            self.sout_c=AS_c.smass() #[J/kg-K]
+        if 'IncompressibleBackend' in self.AS_c.backend_name():
+            self.AS_c.update(CP.PT_INPUTS, self.pin_c, self.Tout_c)
+            self.sout_c=self.AS_c.smass() #[J/kg-K]
             self.DT_sc_c=1e9
-        elif self.pin_c > AS_c.p_critical(): #transcritical
-            AS_c.update(CP.DmassT_INPUTS, self.rhoout_c, self.Tout_c)
-            self.sout_c=AS_c.smass() #[J/kg-K]
+        elif self.pin_c > self.AS_c.p_critical(): #transcritical
+            self.AS_c.update(CP.DmassT_INPUTS, self.rhoout_c, self.Tout_c)
+            self.sout_c=self.AS_c.smass() #[J/kg-K]
             self.DT_app_c=self.Tout_c - self.Tin_h #approach temperature
             self.DT_sc_c=1e9 #No subcooling in this case
         else:
-            AS_c.update(CP.DmassT_INPUTS, self.rhoout_c, self.Tout_c)
-            self.sout_c=AS_c.smass() #[J/kg-K]
+            self.AS_c.update(CP.DmassT_INPUTS, self.rhoout_c, self.Tout_c)
+            self.sout_c=self.AS_c.smass() #[J/kg-K]
             #Effective subcooling for both streams
-            AS_c.update(CP.QT_INPUTS, 0.0, self.Tbubble_c)
-            hsatL=AS_c.hmass() #[J/kg]
-            cpsatL=AS_c.cpmass() #[J/kg-K]
+            self.AS_c.update(CP.QT_INPUTS, 0.0, self.Tbubble_c)
+            hsatL=self.AS_c.hmass() #[J/kg]
+            cpsatL=self.AS_c.cpmass() #[J/kg-K]
             if self.hout_c>hsatL:
                 #Outlet is at some quality on cold side
                 self.DT_sc_c=-(self.hout_c-hsatL)/cpsatL
@@ -509,21 +502,21 @@ class PHEHXClass():
             self.DT_app_c=0 #No approach temp in this case
         
         #hot-side outlet entropy, subcooling or approach temp (if applicable)    
-        if 'IncompressibleBackend' in AS_h.backend_name():
-            AS_h.update(CP.PT_INPUTS, self.pin_h, self.Tout_h)
-            self.sout_h=AS_h.smass() #[J/kg-K]
+        if 'IncompressibleBackend' in self.AS_h.backend_name():
+            self.AS_h.update(CP.PT_INPUTS, self.pin_h, self.Tout_h)
+            self.sout_h=self.AS_h.smass() #[J/kg-K]
             self.DT_sc_h=1e9
-        elif  self.pin_h > AS_h.p_critical(): #transcritical
-            AS_h.update(CP.DmassT_INPUTS, self.rhoout_h, self.Tout_h)
-            self.sout_h=AS_h.smass() #[J/kg-K]
+        elif  self.pin_h > self.AS_h.p_critical(): #transcritical
+            self.AS_h.update(CP.DmassT_INPUTS, self.rhoout_h, self.Tout_h)
+            self.sout_h=self.AS_h.smass() #[J/kg-K]
             self.DT_app_h=self.Tout_h - self.Tin_c #approach temperature
             self.DT_sc_h=1e9 #No subcooling in this case
         else:
-            AS_h.update(CP.DmassT_INPUTS, self.rhoout_h, self.Tout_h)
-            self.sout_h=AS_c.smass() #[J/kg-K]
-            AS_h.update(CP.QT_INPUTS, 0.0, self.Tbubble_h)
-            hsatL=AS_c.hmass() #[J/kg]
-            cpsatL=AS_c.cpmass() #[J/kg-K]
+            self.AS_h.update(CP.DmassT_INPUTS, self.rhoout_h, self.Tout_h)
+            self.sout_h=self.AS_c.smass() #[J/kg-K]
+            self.AS_h.update(CP.QT_INPUTS, 0.0, self.Tbubble_h)
+            hsatL=self.AS_c.hmass() #[J/kg]
+            cpsatL=self.AS_c.cpmass() #[J/kg-K]
             if self.hout_h>hsatL:
                 #Outlet is at some quality on hot side
                 self.DT_sc_h=-(self.hout_h-hsatL)/cpsatL
@@ -634,9 +627,9 @@ class PHEHXClass():
         cp_h=Inputs['cp_h']
         cp_c=Inputs['cp_c']
         #Mole mass of refrigerant for Cooper correlation
-        M=AS_c.molar_mass()*1000 #[kg/kmol]
+        M=self.AS_c.molar_mass()*1000 #[kg/kmol]
         #Reduced pressure for Cooper Correlation
-        pcrit_c = AS_c.p_critical() #critical pressure of Ref_c [Pa]
+        pcrit_c = self.AS_c.p_critical() #critical pressure of Ref_c [Pa]
         pstar=Inputs['pin_c']/pcrit_c
         change=999
         w=1

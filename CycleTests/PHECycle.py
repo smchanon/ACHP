@@ -13,9 +13,6 @@ from scipy.optimize import brent, fsolve
 #from CoolProp.CoolProp import PropsSI #,Tsat        #refrigerant properties
 from ACHP.FinCorrelations import WavyLouveredFins,FinInputs     #fin correlations
 from ACHP.MicroFinCorrelations import MicroFinInputs
-from DiscreteHEX.COND import DiscretizeCondenserClass
-from DiscreteHEX.EVAP import DiscretizeEvaporatorClass
-from DiscreteHEX.GASCOOL import DiscretizeGasCoolerClass
 import numpy as np                  #NumPy is fundamental scientific package                                   
 import CoolProp as CP
 
@@ -46,7 +43,7 @@ class SecondaryCycleClass():
             else:
                 raise
         elif self.EvapSolver == 'Finite-Element':
-            self.Evaporator=DiscretizeEvaporatorClass()
+            print("Finite element function not yet implemented")
         else:
             raise    
         
@@ -60,7 +57,7 @@ class SecondaryCycleClass():
             else:
                 raise
         elif self.CondSolver == 'Finite-Element':
-            self.Condenser=DiscretizeCondenserClass()
+            print("Finite element function not yet implemented")
         else:
             raise
         
@@ -207,7 +204,7 @@ class SecondaryCycleClass():
                 self.CoolingCoil.Calculate()
                 Tin_IHX=self.CoolingCoil.Tout_g
                 resid=self.Calculate(DT_evap,8,Tin_IHX)
-            except Exception,e:
+            except Exception as e:
                 if self.Verbosity>1:
                     print ('Failed: ',e.__str__())
                 raise

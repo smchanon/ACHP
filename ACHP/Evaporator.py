@@ -1,5 +1,5 @@
 from __future__ import division, print_function, absolute_import
-from math import pi,log,exp
+from math import pi,log
 from scipy.optimize import brentq #solver to find roots (zero points) of functions
 from scipy.interpolate import interp1d
 import numpy as np
@@ -48,7 +48,7 @@ class EvaporatorClass():
             ('Tube Long. Pitch','m',self.Fins.Tubes.Pl),
             ('Tube Transverse Pitch','m',self.Fins.Tubes.Pt),
             ('Tube Conductivity','W/m-K',self.Fins.Tubes.kw),
-            ('Outlet superheat','K',self.Tout_r-self.Tdew_r),
+            ('Outlet superheat','K',self.Tout_r-self.Tdew_r),#self.DT_sh_calc
             ('Fins per inch','1/in',self.Fins.Fins.FPI),
             ('Fin waviness pd','m',self.Fins.Fins.Pd),
             ('Fin waviness xf','m',self.Fins.Fins.xf),
@@ -221,6 +221,7 @@ class EvaporatorClass():
             self.DP_r_superheat=0.0
             self.fdry_superheat=0.0
         else:
+            print(f"two phase forward: {self._TwoPhase_Forward}")
             existsSuperheat=True
             # Evaporator outlet is in superheated region, everything is ok
             self.w_2phase=brentq(self._TwoPhase_Forward,0.00000000001,0.9999999999)
@@ -358,6 +359,8 @@ class EvaporatorClass():
     def _Superheat_Forward(self,w_superheat):
         self.w_superheat=w_superheat
         DWS=DWSVals() #DryWetSegment structure
+        DWS.Fins=self.Fins
+        DWS.FinsType = self.FinsType
         AS=self.AS #AbstractState
     
         # Store temporary values to be passed to DryWetSegment
@@ -366,9 +369,7 @@ class EvaporatorClass():
         DWS.eta_a=self.Fins.eta_a
         DWS.h_a=self.Fins.h_a*self.h_a_tuning  #Heat transfer coefficient
         DWS.mdot_da=self.mdot_da*w_superheat
-        DWS.pin_a=self.Fins.Air.p
-        DWS.Fins=self.Fins
-        DWS.FinsType = self.FinsType           
+        DWS.pin_a=self.Fins.Air.p       
         
         # Inputs on the air side to two phase region are inlet air again
         DWS.Tin_a=self.Tin_a
@@ -462,7 +463,7 @@ if __name__=='__main__':
             'Fins': FinsTubes,
             'FinsType': 'WavyLouveredFins',  #Choose fin Type: 'WavyLouveredFins' or 'HerringboneFins'or 'PlainFins'
             'hin_r': PropsSI('H','P',PropsSI('P','T',282,'Q',1.0,Ref),'Q',0.15,Ref), 
-            'Verbosity': 0,
+            'Verbosity': 8,
             'h_a_tuning':1,
             'h_tp_tuning':1,
             'DP_tuning':1,

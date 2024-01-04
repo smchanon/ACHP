@@ -52,6 +52,8 @@ class SecondaryCycleClass():
         self.LineSetSuction=LineSetOptionClass()
         self.LineSetDischarge=LineSetOptionClass()
         self.LineSetLiquid=LineSetOptionClass()
+        self.Backend="HEOS"
+        self.Ref="R410A"
         
         #Make IHX an empty class for holding parameters common to PHE and Coaxial IHX
         class struct: pass
@@ -70,11 +72,11 @@ class SecondaryCycleClass():
                 self.Evaporator=MicroChannelEvaporatorClass()
                 self.Evaporator.Fins=MicroFinInputs()
             else:
-                raise
+                raise Exception('Evaporator type not found')
         elif self.EvapSolver == 'Finite-Element':
             raise Exception('Discretized HX model not implemented')
         else:
-            raise 
+            raise Exception('Evaporator solver type not found')
         
         if self.CondSolver == 'Moving-Boundary':
             if self.CondType == 'Fin-tube':
@@ -84,11 +86,11 @@ class SecondaryCycleClass():
                 self.Condenser=MicroCondenserClass()
                 self.Condenser.Fins=MicroFinInputs()
             else:
-                raise
+                raise Exception('Condenser type not found')
         elif self.CondSolver == 'Finite-Element':
             raise Exception('Discretized HX model not implemented')
         else:
-            raise
+            raise Exception('Condenser solver type not found')
         
         #Abstract State   
         self.AS = CP.AbstractState(self.Backend, self.Ref)
@@ -727,10 +729,14 @@ class DXCycleClass():
         the code that follows
         """
         self.Compressor=CompressorClass()
+        self.LineSetSupply=LineSetOptionClass()
+        self.LineSetReturn=LineSetOptionClass()
         self.LineSetSuction=LineSetOptionClass()
         self.LineSetDischarge=LineSetOptionClass()
         self.LineSetLiquid=LineSetOptionClass()
         self.ExpDev=ExpDevClass()
+        self.Backend="HEOS"
+        self.Ref="R410A"
         
     def Update(self):
         '''
@@ -1209,7 +1215,7 @@ class DXCycleClass():
                 raise 
             except:
                 print ("--------------  Exception Caught ---------------- ")
-                print ("Error of type",sys.exc_info()[0]," is: " + sys.exc_info()[1].message)
+                print ("Error of type",sys.exc_info()[0]," is: " + str(sys.exc_info()[1]))
                 raise
         
         if self.Verbosity>0:
@@ -1241,6 +1247,8 @@ class VariableSpeedHPClass():
         self.LineSetLiquid=LineSetOptionClass()
         self.ExpDev=ExpDevClass()
         self.SuctionAccumulator = SuctionAccumulatorClass()
+        self.Backend="HEOS"
+        self.Ref="R410A"
         
     def Update(self):
         '''
@@ -1767,7 +1775,7 @@ class VariableSpeedHPClass():
                 raise 
             except:
                 print ("--------------  Exception Caught ---------------- ")
-                print ("Error of type",sys.exc_info()[0]," is: " + sys.exc_info()[1].message)
+                print ("Error of type",sys.exc_info()[0]," is: " + str(sys.exc_info()[1]))
                 raise
         
         if self.Verbosity>0:

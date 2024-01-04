@@ -33,7 +33,8 @@ def DXPreconditioner(Cycle,epsilon=0.96):
         Cycle.Compressor.pout_r=pcond
         Cycle.Compressor.Tin_r=Tevap+DT_sh
         Cycle.Compressor.Ref=Cycle.Ref
-        Cycle.Compressor.Oil=Cycle.Oil
+        if hasattr(Cycle, 'Oil'):
+            Cycle.Compressor.Oil=Cycle.Oil
         Cycle.Compressor.AS=Cycle.AS
         Cycle.Compressor.Calculate()
         W=Cycle.Compressor.W

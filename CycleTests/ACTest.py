@@ -2,7 +2,6 @@
 from __future__ import division, absolute_import, print_function
 from ACHP.Cycle import DXCycleClass 
 from ACHP.Plots import PlotsClass
-from ACHP.SecondLawAnalysis import SecondLawAnalysisClass
 
 # Instantiate the cycle class
 Cycle=DXCycleClass()
@@ -176,9 +175,9 @@ print ('Cycle COP is '+str(Cycle.COSP))
 print ('Cycle refrigerant charge is '+str(Cycle.Charge)+' kg')
 
 # Now run Second Law analysis
-SecondLaw = SecondLawAnalysisClass()
-SecondLaw.DXCycle(Cycle)
-print ('Cycle Second Law is '+str(SecondLaw.epsilon_sys))
+#SecondLaw = SecondLawAnalysisClass()
+#SecondLaw.DXCycle(Cycle)
+#print ('Cycle Second Law is '+str(SecondLaw.epsilon_sys))
 
 # Now do cycle plotting
 plot = PlotsClass()

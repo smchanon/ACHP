@@ -13,7 +13,7 @@ except ImportError:
     pass
 
 #Machine precision
-machine_eps=np.finfo(np.float).eps
+machine_eps=np.finfo(np.float64).eps
 
 def Phase_ph(AS,p,h,Tbubble,Tdew,rhosatL,rhosatV):
     """

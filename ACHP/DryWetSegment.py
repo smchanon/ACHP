@@ -4,6 +4,8 @@ from CoolProp.CoolProp import HAPropsSI, cair_sat
 from ACHP.FinCorrelations import WavyLouveredFins, HerringboneFins, PlainFins
 from ACHP.MicroFinCorrelations import MultiLouveredMicroFins
 
+from ACHP.wrappers.coolPropWrapper import HumidAirPropertiesWrapper
+
 class DWSVals():
     """ 
     Empty Class for passing data with DryWetSegment
@@ -54,7 +56,9 @@ def DryWetSegment(DWS):
     Rw=DWS.Rw
     
     #Calculate the dewpoint (amongst others)
-    omega_in=HAPropsSI('W','T',Tin_a,'P',pin_a,'R',RHin_a)
+    omega_in = HumidAirPropertiesWrapper().calculateHumidityRatio(Tin_a, pin_a, RHin_a)
+    # omega_in=HAPropsSI('W','T',Tin_a,'P',pin_a,'R',RHin_a)
+    print(f"omega in: {omega_in}")
     Tdp=HAPropsSI('D','T',Tin_a,'P',pin_a,'W',omega_in)
     hin_a=HAPropsSI('H','T',Tin_a,'P',pin_a,'W',omega_in) #[J/kg_da]
     
@@ -71,6 +75,7 @@ def DryWetSegment(DWS):
     
 
     if DWS.IsTwoPhase: #(Two-Phase analysis)
+        print("two phase analysis")
         UA=1/(1/(h_a*A_a*eta_a)+1/(h_r*A_r)+1/UA_w); #overall heat transfer coefficient
         Ntu_dry=UA/(mdot_da*cp_da); #Number of transfer units
         epsilon_dry=1-exp(-Ntu_dry);  #since Cr=0, e.g. see Incropera - Fundamentals of Heat and Mass Transfer, 2007, p. 690
@@ -81,6 +86,7 @@ def DryWetSegment(DWS):
         T_so_b=(UA_o*Tout_a+UA_i*Tin_r)/(UA_o+UA_i);  #outlet surface temperature (neglect wall thermal conductance)
 
         if T_so_b>Tdp:
+            print("All dry")
             #All dry, since surface at outlet dry
             f_dry=1.0
             Q=Q_dry #[W]
@@ -89,13 +95,16 @@ def DryWetSegment(DWS):
             # Air outlet humidity ratio
             DWS.omega_out = omega_in #[kg/kg]
         else:
+            print("wet")
             if T_so_a<Tdp:
+                print("All wet")
                 #All wet, since surface at inlet wet
                 f_dry=0.0
                 Q_dry=0.0
                 T_ac=Tin_a #temp at onset of wetted wall
                 h_ac=hin_a #enthalpy at onset of wetted surface
             else:
+                print("Partially wet")
                 # Partially wet and dry (i.e T_so_b<Tdp<T_so_a)
 
                 # Air temperature at the interface between wet and dry surface
@@ -159,6 +168,7 @@ def DryWetSegment(DWS):
         Tout_r=DWS.Tdew_r 
             
     else: #(Single-Phase analysis)
+        print("single phase analysis")
         #Overall UA
         UA = 1 / (1 / (UA_i) + 1 / (UA_o) + 1 / (UA_w));
         # Min and max capacitance rates [W/K]
@@ -211,6 +221,7 @@ def DryWetSegment(DWS):
             isFullyWet=False
 
         if Tout_s<Tdp or isFullyWet:
+            print("Some wetting")
             # There is some wetting, either the coil is fully wetted or partially wetted 
 
             # Loop to get the correct c_s 
@@ -304,6 +315,7 @@ def DryWetSegment(DWS):
             f_dry=0.0
             
             if (Tin_s>Tdp and not isFullyWet):
+                print("Coil is partially wet")
 
                 #Partially wet and partially dry with single-phase on refrigerant side
                 
@@ -386,8 +398,10 @@ def DryWetSegment(DWS):
                 #Sensible heat transfer rate [kW]
                 Q_sensible = mdot_da*cp_da*(Tin_a-Tout_a)
             else:
+                print("Coil is fully wet?")
                 Q=Q_wet
         else:
+            print("Coil is fully dry")
             # Coil is fully dry
             Tout_a=Tout_a_dry
             Q=Q_dry
@@ -396,7 +410,11 @@ def DryWetSegment(DWS):
 
     DWS.f_dry=f_dry
     DWS.omega_out=HAPropsSI('W','T',Tout_a,'P',101325,'H',hout_a)
-    DWS.RHout_a=HAPropsSI('R','T',Tout_a,'P',101325,'W',DWS.omega_out)
+    print(f"omega out: {DWS.omega_out}")
+    try:
+        DWS.RHout_a=HAPropsSI('R','T',Tout_a,'P',101325,'W',DWS.omega_out)
+    except ValueError:
+        DWS.RHout_a = 1.0
     DWS.Tout_a=Tout_a
     DWS.Q=Q
     DWS.Q_sensible=Q_sensible
