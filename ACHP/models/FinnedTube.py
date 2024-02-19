@@ -5,168 +5,9 @@ Created on Fri Dec 22 10:41:29 2023
 
 @author: SMCANANA
 """
+from enum import StrEnum
 import numpy as np
-from ACHP.wrappers.coolPropWrapper import HumidAirPropertiesWrapper
-
-class Fins():
-    """
-    Fin settings for fins and tubes heat exchanger
-
-    Required inputs:
-        finsPerInch             number of fins per inch
-        amplitude               amplitude of fin
-        period                  period of fin
-        thickness               thickness of fin
-        thermalConductivity     thermal conductivity of fin material
-    """
-
-    def __init__(self, finsPerInch: float, thickness: float, thermalConductivity: float):
-        assert 0.1 <= finsPerInch <= 100, "Fins per inch must be between 0.1 and 100"
-        assert 0.00001 <= thickness <= 0.01, "Thickness must be between 0.00001 and 0.01"
-        assert 0.01 <= thermalConductivity <= 10000, "Thermal conductivity must be between \
-            0.01 and 10000"
-        self.finsPerInch = finsPerInch
-        self.thickness = thickness
-        self.thermalConductivity = thermalConductivity
-        self.finsPerMeter = self.calculateFinsPerMeter()
-        self.finPitch = self.calculateFinPitch()
-        self.finType = ''
-
-    def __str__(self):
-        finString = f'fin type: {self.finType}\n'
-        finString += f'fins per inch: {self.finsPerInch}\n'
-        finString += f'thickness: {self.thickness}\n'
-        finString += f'thermal conductivity: {self.thermalConductivity}\n'
-        return finString
-
-    def calculateFinsPerMeter(self):
-        """
-        Calculates the number of fins per meter given the number of fins per inch
-
-        Returns
-        -------
-        float
-            number of fins per meter
-
-        """
-        return self.finsPerInch / 0.0254
-
-    def calculateFinPitch(self):
-        """
-        Calculates the fin pitch (meters per fin)
-
-        Returns
-        -------
-        float
-            fins per meter^-1
-
-        """
-        return 1/self.finsPerMeter
-
-    def finSpacing(self):
-        """
-        Calculates the fin spacing based on fins pitch and fin thickness
-
-        Returns
-        -------
-        float
-            spacing between fins
-
-        """
-        return self.finPitch  - self.thickness
-
-    def calculateOutsideDiameter(self, tubeOuterDiameter):
-        """
-        Calculates the outer diameter of the tubes. Somehow changes based on fin
-        geometry?
-
-        Parameters
-        ----------
-        tubeOuterDiameter : float
-            outer diameter of tubes
-
-        Returns
-        -------
-        float
-            corrected outer diameter of tubes
-
-        """
-        return tubeOuterDiameter
-
-    def calculateAreaIncrease(self):
-        """
-        Calculates the increase in area created by different fin geometries
-
-        Returns
-        -------
-        float
-            fin geometry area correction
-
-        """
-        return 1.0
-    
-    def calculateColburnJFactor(self, reynoldsNumberAir, tubeOuterDiameter,
-                tubeNumBanks, distFlow, distOrtho, totalArea, tubeOuterArea,
-                crossSectionalArea):
-        """
-        Calculates the Chilton and Colburn j factor depending on the type of fin
-
-        Parameters
-        ----------
-        reynoldsNumberAir : float
-            Reynolds number of air/coolant fluid
-        tubeOuterDiameter : float
-            diameter of the outer surface of tube
-        tubeNumBanks : float
-            number of banks of tubes
-        distFlow : float
-            distance between tubes in the direction of flow
-        distOrtho : float
-            distance between tubes orthogonal to the direction of flow
-        totalArea : float
-            total surface area of heat exchanger
-        tubeOuterArea : float
-            outer surface area of tube
-        crossSectionalArea : float
-            cross-sectional area of the duct
-
-        Returns
-        -------
-        float
-            Chilton and Colburn j factor
-
-        """
-        pass
-
-    def calculateAirSideFrictionFactor(self, reynoldsNumber, totalArea, tubeOuterArea,
-                tubeOuterDiameter, tubeNumBanks, tubeDistOrtho, tubeDistFlow):
-        """
-        Calculates the air side friction factor depending on the type of fin
-
-        Parameters
-        ----------
-        reynoldsNumber : float
-            Reynolds number of air/coolant fluid
-        totalArea : float
-            total surface area of heat exchanger
-        tubeOuterArea : float
-            outer surface area of tube
-        tubeOuterDiameter : float
-            diameter of the outer surface of tube
-        tubeNumBanks : float
-            number of banks of tubes
-        tubeDistOrtho : float
-            distance between tubes orthogonal to the direction of flow
-        tubeDistFlow : float
-            distance between tubes in the direction of flow
-
-        Returns
-        -------
-        float
-            air-side friction factor
-
-        """
-        pass
+from ACHP.wrappers.CoolPropWrapper import HumidAirPropertiesWrapper
 
 class Tubes():
     """
@@ -199,15 +40,10 @@ class Tubes():
         self.thermalConductivityWall = thermalConductivityWall #wall thermal conductivity
 
     def __str__(self):
-        tubeString =  f'number of tubes per bank: {self.numPerBank}\n'
-        tubeString += f'number of banks: {self.numBanks}\n'
-        tubeString += f'number of circuits: {self.numCircuits}\n'
-        tubeString += f'length of tube: {self.length}\n'
-        tubeString += f'inner diameter of tube: {self.innerDiam}\n'
-        tubeString += f'outer diameter of tube: {self.outerDiam}\n'
-        tubeString += f'distance between center of tubes in direction of flow: {self.distFlow}\n'
-        tubeString += f'distance between center of tubes orthogonal to flow direction: {self.distOrtho}\n'
-        tubeString += f'thermal conductivity of tube wall: {self.thermalConductivityWall}\n'
+        tubeString = ''
+        tubeVars = vars(self)
+        for var in tubeVars:
+            tubeString +=f'{var}: {tubeVars[var]}\n'
         return tubeString
 
     def calculateHeight(self):
@@ -290,12 +126,10 @@ class Tubes():
 
 class Air():
     """
-    "air" settings for fins and tubes heat exchanger. Should be broadened to
-    include fluids other than air
+    "air" settings for fins and tubes heat exchanger.
     """
 
-    def __init__(self, vDotHA: float, tempDryBulb: float,
-                 pressure: float, relativeHumidity: float,
+    def __init__(self, vDotHA: float, tempDryBulb: float, pressure: float, relativeHumidity: float,
                  fanPower: float, correction=1.0):
         assert 0.001 <= vDotHA <= 10, "Volumetric flow must be between 0.001 and 10"
         assert (-80+273.15) <= tempDryBulb <= (200+273.15), "Dry bulb temperature must be between\
@@ -309,12 +143,18 @@ class Air():
         self.relativeHumidity = relativeHumidity
         self.fanPower = fanPower
         self.correction = correction
+        #TODO: get rid of humid air props and make it for all coolants
         humidAirProps = HumidAirPropertiesWrapper()
-        self.humidityRatio = humidAirProps.calculateHumidityRatio(self.tempDryBulb, self.pressure, self.relativeHumidity)
-        self.enthalpyDryAir = humidAirProps.calculateDryAirEnthalpy(self.tempDryBulb, self.pressure, self.humidityRatio)
-        self.volumeDryAir = humidAirProps.calculateDryAirVolume(self.tempDryBulb, self.pressure, self.humidityRatio)
-        self.viscosity = humidAirProps.calculateViscosity(self.tempDryBulb, self.pressure, self.humidityRatio)
-        self.thermalConductivity = humidAirProps.calculateThermalConductivity(self.tempDryBulb, self.pressure, self.humidityRatio)
+        self.humidityRatio = humidAirProps.calculateHumidityRatio(self.tempDryBulb, self.pressure,
+                self.relativeHumidity)
+        self.enthalpyDryAir = humidAirProps.calculateDryAirEnthalpy(self.tempDryBulb, self.pressure,
+                self.humidityRatio)
+        self.volumeDryAir = humidAirProps.calculateDryAirVolume(self.tempDryBulb, self.pressure,
+                self.humidityRatio)
+        self.viscosity = humidAirProps.calculateViscosity(self.tempDryBulb, self.pressure,
+                self.humidityRatio)
+        self.thermalConductivity = humidAirProps.calculateThermalConductivity(self.tempDryBulb,
+                self.pressure, self.humidityRatio)
         self.heatCapacityDryAir = self.calculateHeatCapacityDryAir() #[J/kg_ha/K]
         self.heatCapacityHumidAir = self.heatCapacityDryAir/(1 + self.humidityRatio) #[J/kg_ha/K]
         self.prandtlNumber = self.calculatePrandtlNumber()
@@ -403,114 +243,135 @@ class Air():
         """
         return self.rhoHumidAir*flowSpeed*characteristicLength/self.viscosity
 
-class FinsAndTubes():
+class FinType(StrEnum):
     """
-    Fins and tubes heat exchanger settings
+    Fin type enum
+    """
+    HERRINGBONE = 'HerringboneFins'
+    WAVYLOUVERED = 'WavyLouveredFins'
+    PLAIN = 'PlainFins'
+
+class Fins():
+    """
+    Fin settings for fins and tubes heat exchanger
+
+    Required inputs:
+        finsPerInch             number of fins per inch
+        amplitude               amplitude of fin
+        period                  period of fin
+        thickness               thickness of fin
+        thermalConductivity     thermal conductivity of fin material
     """
 
-    def __init__(self, tubes, fins, air):
-        assert isinstance(tubes, Tubes), "Tubes must be of the Tubes class"
-        assert isinstance(fins, Fins), "Fins must be of the Fins class"
-        assert isinstance(air, Air), "Air must be of the Air class"
-        self.tubes = tubes
-        self.fins = fins
-        self.air = air
-        self.numFinsInTubeSheet = self.calculateNumFinsInTubeSheet()
-        self.totalArea = self.calculateTotalArea()
-        self.ductCrossSectionalArea = self.tubes.calculateDuctCrossSectionalArea(
-            self.fins.calculateOutsideDiameter(self.tubes.outerDiam),
-            self.fins.thickness, self.numFinsInTubeSheet)
-        self.airSideMeanHeatTransfer = self.calculateAirSideMeanHeatTransfer()
-        self.airSideFrictionFactor = self.calculateAirSideFrictionFactor()
-        self.airSidePressureDrop = self.calculateAirsidePressureDrop()
+    def __init__(self, finsPerInch: float, thickness: float, thermalConductivity: float):
+        assert 0.1 <= finsPerInch <= 100, "Fins per inch must be between 0.1 and 100"
+        assert 0.00001 <= thickness <= 0.01, "Thickness must be between 0.00001 and 0.01"
+        assert 0.01 <= thermalConductivity <= 10000, "Thermal conductivity must be between \
+            0.01 and 10000"
+        self.finsPerInch = finsPerInch
+        self.thickness = thickness
+        self.thermalConductivity = thermalConductivity
+        self.finsPerMeter = self.calculateFinsPerMeter()
+        self.finPitch = self.calculateFinPitch()
+        self.finType = ''
 
     def __str__(self):
-        return "Tubes:\n" + str(self.tubes) + "Fins:\n" + str(self.fins) + "Air:\n" + str(self.air)
+        finString = ''
+        finVars = vars(self)
+        for var in finVars:
+            finString +=f'{var}: {finVars[var]}\n'
+        return finString
 
-    def calculateNumFinsInTubeSheet(self):
+    def calculateFinsPerMeter(self):
         """
-        Calculates the number of fins in a tube sheet
+        Calculates the number of fins per meter given the number of fins per inch
 
         Returns
         -------
         float
-            number of fins in tube sheet
+            number of fins per meter
 
         """
-        return self.tubes.length * self.fins.finsPerMeter
+        return self.finsPerInch/0.0254
 
-    def calculateWettedArea1Fin(self):
+    def calculateFinPitch(self):
         """
-        Calculates the wetted area of one fin, assuming that the fin extends
-        1/2 pt in front/after last tube in bundle
+        Calculates the fin pitch (meters per fin)
 
         Returns
         -------
         float
-            wetted area of single fin
+            fins per meter^-1
 
         """
-        #TODO: plain fin uses D_c and not D_o like the others. Why?
-        totalArea = self.tubes.calculateHeight()*self.tubes.distFlow*\
-            (self.tubes.numBanks+1)*self.fins.calculateAreaIncrease()
-        tubeArea = (self.tubes.numPerBank*self.tubes.numBanks*np.pi*self.tubes.outerDiam**2)/4
-        return 2.0 * (totalArea - tubeArea)
+        return 1/self.finsPerMeter
 
-    def calculateWettedAreaTotal(self):
+    def finSpacing(self):
         """
-        Calculates the total wetted area of the heat exchanger
+        Calculates the fin spacing based on fins pitch and fin thickness
 
         Returns
         -------
         float
-            total wetted area
+            spacing between fins
 
         """
-        return self.numFinsInTubeSheet*self.calculateWettedArea1Fin()
+        return self.finPitch  - self.thickness
 
-    def calculateTotalArea(self):
+    def calculateOutsideDiameter(self, tubeOuterDiameter):
         """
-        Calculates the total air side surface area of the heat exchanger
+        Calculates the outer diameter of the tubes. Somehow changes based on fin
+        geometry?
+
+        Parameters
+        ----------
+        tubeOuterDiameter : float
+            outer diameter of tubes
 
         Returns
         -------
         float
-            total air side surface area
+            corrected outer diameter of tubes
 
         """
-        #TODO: plain fin uses D_c and not D_o like the others. Why?
-        return self.calculateWettedAreaTotal() + self.tubes.numPerBank*self.tubes.numBanks*np.pi*\
-            self.tubes.outerDiam*(self.tubes.length - self.numFinsInTubeSheet*self.fins.thickness)
+        return tubeOuterDiameter
 
-    def calculateUMax(self):
+    def calculateAreaIncrease(self):
         """
-        Calculates the maximum velocity of air in the heat exchanger
+        Calculates the increase in area created by different fin geometries
 
         Returns
         -------
         float
-            maximum air velocity
+            fin geometry area correction
 
         """
-        return self.air.massFlowHumidAir/(self.air.rhoHumidAir*self.ductCrossSectionalArea)
+        return 1.0
 
-    def calculateReynoldsNumberAir(self):
+    def calculateColburnJFactor(self, reynoldsNumberAir, tubeOuterDiameter,
+                tubeNumBanks, distFlow, distOrtho, totalArea, tubeOuterArea,
+                crossSectionalArea):
         """
-        Wrapper for calculation of the Reynolds number for air
+        Calculates the Chilton and Colburn j factor depending on the type of fin
 
-        Returns
-        -------
-        float
-            air side Reynolds number
-
-        """
-        return self.air.calculateReynoldsNumber(self.calculateUMax(),
-            self.fins.calculateOutsideDiameter(self.tubes.outerDiam))
-
-    def calculateColburnJFactor(self):
-        """
-        Calculates the Chilton and Colburn J-factor from the Chilton and Colburn
-        J-factor analogy
+        Parameters
+        ----------
+        reynoldsNumberAir : float
+            Reynolds number of air/coolant fluid
+        tubeOuterDiameter : float
+            diameter of the outer surface of tube
+        tubeNumBanks : float
+            number of banks of tubes
+        distFlow : float
+            distance between tubes in the direction of flow
+        distOrtho : float
+            distance between tubes orthogonal to the direction of flow
+        totalArea : float
+            total surface area of heat exchanger
+        tubeOuterArea : float
+            outer surface area of tube
+        crossSectionalArea : float
+            cross-sectional area of the duct
 
         Returns
         -------
@@ -518,123 +379,35 @@ class FinsAndTubes():
             Chilton and Colburn j factor
 
         """
-        tubeCrossSectionalArea = self.ductCrossSectionalArea
-        return self.fins.calculateColburnJFactor(self.calculateReynoldsNumberAir(),
-                self.fins.calculateOutsideDiameter(self.tubes.outerDiam), self.tubes.numBanks,
-                self.tubes.distFlow, self.tubes.distOrtho, self.totalArea,
-                self.tubes.calculateTubeOuterArea(), tubeCrossSectionalArea)
 
-    def calculateAirSideMeanHeatTransfer(self):
+    def calculateAirSideFrictionFactor(self, reynoldsNumber, totalArea, tubeOuterArea,
+                tubeOuterDiameter, tubeNumBanks, tubeDistOrtho, tubeDistFlow):
         """
-        Calculate h_a, the mean heat transfer for the air side
+        Calculates the air side friction factor depending on the type of fin
+
+        Parameters
+        ----------
+        reynoldsNumber : float
+            Reynolds number of air/coolant fluid
+        totalArea : float
+            total surface area of heat exchanger
+        tubeOuterArea : float
+            outer surface area of tube
+        tubeOuterDiameter : float
+            diameter of the outer surface of tube
+        tubeNumBanks : float
+            number of banks of tubes
+        tubeDistOrtho : float
+            distance between tubes orthogonal to the direction of flow
+        tubeDistFlow : float
+            distance between tubes in the direction of flow
 
         Returns
         -------
         float
-            air side mean heat transfer
+            air-side friction factor
 
         """
-        return self.calculateColburnJFactor()*self.air.rhoHumidAir*self.calculateUMax()*\
-                self.air.heatCapacityHumidAir/pow(self.air.prandtlNumber, 2.0/3.0)
-
-    def calculateMFactor(self):
-        """
-        Calculates m, a non-dimensional group in the fin efficiency calculation
-
-        Returns
-        -------
-        float
-            m, fin surface efficiency parameter
-
-        """
-        return np.sqrt(2*self.airSideMeanHeatTransfer*self.air.correction/\
-            (self.fins.thermalConductivity*self.fins.thickness))
-
-    def calculateSurfaceEfficiencyParam(self):
-        """
-        Calculates phi, a parameter used in the fin surface efficiency calculation
-
-        Returns
-        -------
-        float
-            phi, fin surface efficiency parameter
-
-        """
-        #TODO: check calculation
-        effectiveRadiusRatio = self.tubes.calculateEffectiveRadiusRatio()
-        lateralRadialDistance = self.tubes.outerDiam/2
-        return (effectiveRadiusRatio - 1)*(1 + (0.3 + pow(\
-                self.calculateMFactor()*(effectiveRadiusRatio*lateralRadialDistance - \
-                lateralRadialDistance)/2.5,1.5 - effectiveRadiusRatio/12.0)*(\
-                0.26*pow(effectiveRadiusRatio,0.3)-0.3)) * np.log(effectiveRadiusRatio))
-
-    def calculateFinEfficiency(self):
-        """
-        Calculates eta_f, the surface efficiency of the heat exchanger fins
-
-        Returns
-        -------
-        float
-            fin surface efficiency
-
-        """
-        mrPhi = self.calculateMFactor()*self.tubes.outerDiam/2*\
-            self.calculateSurfaceEfficiencyParam()
-        return np.tanh(mrPhi)/mrPhi*np.cos(0.1*mrPhi)
-
-    def calculateOverallSurfaceEfficiency(self):
-        """
-        Calculates eta_o, the overall surface efficiency of the heat exchanger
-
-        Returns
-        -------
-        float
-            overall surface efficiency
-
-        """
-        return 1 - self.calculateWettedAreaTotal()/\
-            self.totalArea*(1 - self.calculateFinEfficiency())
-
-    def calculateAirMassFlux(self):
-        """
-        Calculates G_c, the air side mass flux
-
-        Returns
-        -------
-        float
-            air side mass flux
-
-        """
-        return self.air.massFlowHumidAir/self.ductCrossSectionalArea
-
-    def calculateAirsidePressureDrop(self):
-        """
-        Calculates the pressure drop on the air side of the heat exchanger
-
-        Returns
-        -------
-        float
-            air side pressure drop
-
-        """
-        return self.totalArea/self.ductCrossSectionalArea/self.air.rhoHumidAir*\
-            self.calculateAirMassFlux()**2/2.0*self.calculateAirSideFrictionFactor()
-
-    def calculateAirSideFrictionFactor(self):
-        """
-        Calculates C_f, the friction factor for the air side, used to calculate
-        the air side pressure drop
-
-        Returns
-        -------
-        float
-            friction factor
-
-        """
-        return self.fins.calculateAirSideFrictionFactor(self.calculateReynoldsNumberAir(),
-                self.totalArea, self.tubes.calculateTubeOuterArea(),
-                self.fins.calculateOutsideDiameter(self.tubes.outerDiam),
-                self.tubes.numBanks, self.tubes.distOrtho, self.tubes.distFlow)
 
 class TexturedFins(Fins):
     """
@@ -655,15 +428,6 @@ class TexturedFins(Fins):
         assert 0.00001 <= period <= 0.01, "Period must be between 0.00001 and 0.01"
         self.amplitude = amplitude
         self.period = period
-
-    def __str__(self):
-        finString = f'fin type: {self.finType}\n'
-        finString += f'fins per inch: {self.finsPerInch}\n'
-        finString += f'thickness: {self.thickness}\n'
-        finString += f'thermal conductivity: {self.thermalConductivity}\n'
-        finString += f'amplitude: {self.amplitude}\n'
-        finString += f'period: {self.period}\n'
-        return finString
 
 class WavyLouveredFins(TexturedFins):
     """
@@ -724,7 +488,7 @@ class WavyLouveredFins(TexturedFins):
                  period):
         super().__init__(finsPerInch, thickness, thermalConductivity,
                          amplitude, period)
-        self.finType = 'WavyLouveredFins'
+        self.finType = FinType.WAVYLOUVERED
 
 
     def calculateAreaIncrease(self):
@@ -780,7 +544,7 @@ class HerringboneFins(TexturedFins):
                  period):
         super().__init__(finsPerInch, thickness, thermalConductivity,
                          amplitude, period)
-        self.finType = 'HerringboneFins'
+        self.finType = FinType.HERRINGBONE
 
     def calculateAreaIncrease(self):
         #TODO: !!used wavy louvered fins definition - there seems to be a bug in the paper !!
@@ -879,7 +643,7 @@ class PlainFins(Fins):
     def __init__(self, finsPerInch: float, thickness: float,
                  thermalConductivity: float):
         super().__init__(finsPerInch, thickness, thermalConductivity)
-        self.finType = 'PlainFins'
+        self.finType = FinType.PLAIN
 
     def calculateOutsideDiameter(self, tubeOuterDiameter):
         return tubeOuterDiameter + 2*self.thickness
@@ -918,7 +682,237 @@ class PlainFins(Fins):
             pow(self.finPitch/tubeOuterDiameter,frictionFactor3)
         return frictionFactor
 
+class FinnedTube():
+    """
+    Fins and tubes heat exchanger settings
+    """
+    def __init__(self, tubes: Tubes, fins: Fins, air: Air):
+        self.tubes = tubes
+        self.fins = fins
+        self.air = air
+        self.numFinsInTubeSheet = self.calculateNumFinsInTubeSheet()
+        self.totalArea = self.calculateTotalArea()
+        self.ductCrossSectionalArea = self.tubes.calculateDuctCrossSectionalArea(
+            self.fins.calculateOutsideDiameter(self.tubes.outerDiam),
+            self.fins.thickness, self.numFinsInTubeSheet)
+        self.airSideMeanHeatTransfer = self.calculateAirSideMeanHeatTransfer()
+        self.airSideFrictionFactor = self.calculateAirSideFrictionFactor()
+        self.airSidePressureDrop = self.calculateAirSidePressureDrop()
+
+    def __str__(self):
+        return "Tubes:\n" + str(self.tubes) + "Fins:\n" + str(self.fins) + "Air:\n" + str(self.air)
+
+    def calculateNumFinsInTubeSheet(self):
+        """
+        Calculates the number of fins in a tube sheet
+
+        Returns
+        -------
+        float
+            number of fins in tube sheet
+
+        """
+        return self.tubes.length * self.fins.finsPerMeter
+
+    def calculateWettedArea1Fin(self):
+        """
+        Calculates the wetted area of one fin, assuming that the fin extends
+        1/2 pt in front/after last tube in bundle
+
+        Returns
+        -------
+        float
+            wetted area of single fin
+
+        """
+        #TODO: plain fin uses D_c and not D_o like the others. Why?
+        totalArea = self.tubes.calculateHeight()*self.tubes.distFlow*\
+            (self.tubes.numBanks+1)*self.fins.calculateAreaIncrease()
+        tubeArea = (self.tubes.numPerBank*self.tubes.numBanks*np.pi*self.tubes.outerDiam**2)/4
+        return 2.0 * (totalArea - tubeArea)
+
+    def calculateWettedAreaTotal(self):
+        """
+        Calculates the total wetted area of the heat exchanger
+
+        Returns
+        -------
+        float
+            total wetted area
+
+        """
+        return self.numFinsInTubeSheet*self.calculateWettedArea1Fin()
+
+    def calculateTotalArea(self):
+        """
+        Calculates the total air side surface area of the heat exchanger
+
+        Returns
+        -------
+        float
+            total air side surface area
+
+        """
+        #TODO: plain fin uses D_c and not D_o like the others. Why?
+        return self.calculateWettedAreaTotal() + self.tubes.numPerBank*self.tubes.numBanks*np.pi*\
+            self.tubes.outerDiam*(self.tubes.length - self.numFinsInTubeSheet*self.fins.thickness)
+
+    def calculateUMax(self):
+        """
+        Calculates the maximum velocity of air in the heat exchanger
+
+        Returns
+        -------
+        float
+            maximum air velocity
+
+        """
+        return self.air.massFlowHumidAir/(self.air.rhoHumidAir*self.ductCrossSectionalArea)
+
+    def calculateReynoldsNumberAir(self):
+        """
+        Wrapper for calculation of the Reynolds number for air
+
+        Returns
+        -------
+        float
+            air side Reynolds number
+
+        """
+        return self.air.calculateReynoldsNumber(self.calculateUMax(),
+            self.fins.calculateOutsideDiameter(self.tubes.outerDiam))
+
+    def calculateColburnJFactor(self):
+        """
+        Calculates the Chilton and Colburn J-factor from the Chilton and Colburn
+        J-factor analogy
+
+        Returns
+        -------
+        float
+            Chilton and Colburn j factor
+
+        """
+        return self.fins.calculateColburnJFactor(self.calculateReynoldsNumberAir(),
+                self.fins.calculateOutsideDiameter(self.tubes.outerDiam), self.tubes.numBanks,
+                self.tubes.distFlow, self.tubes.distOrtho, self.totalArea,
+                self.tubes.calculateTubeOuterArea(), self.ductCrossSectionalArea)
+
+    def calculateAirSideMeanHeatTransfer(self):
+        """
+        Calculate h_a, the mean heat transfer for the air side
+
+        Returns
+        -------
+        float
+            air side mean heat transfer
+
+        """
+        return self.calculateColburnJFactor()*self.air.rhoHumidAir*self.calculateUMax()*\
+                self.air.heatCapacityHumidAir/pow(self.air.prandtlNumber, 2.0/3.0)
+
+    def calculateMFactor(self):
+        """
+        Calculates m, a non-dimensional group in the fin efficiency calculation
+
+        Returns
+        -------
+        float
+            m, fin surface efficiency parameter
+
+        """
+        return np.sqrt(2*self.airSideMeanHeatTransfer*self.air.correction/\
+            (self.fins.thermalConductivity*self.fins.thickness))
+
+    def calculateSurfaceEfficiencyParam(self):
+        """
+        Calculates phi, a parameter used in the fin surface efficiency calculation
+
+        Returns
+        -------
+        float
+            phi, fin surface efficiency parameter
+
+        """
+        #TODO: check calculation
+        effectiveRadiusRatio = self.tubes.calculateEffectiveRadiusRatio()
+        lateralRadialDistance = self.tubes.outerDiam/2
+        return (effectiveRadiusRatio - 1)*(1 + (0.3 + pow(\
+                self.calculateMFactor()*(effectiveRadiusRatio*lateralRadialDistance - \
+                lateralRadialDistance)/2.5,1.5 - effectiveRadiusRatio/12.0)*(\
+                0.26*pow(effectiveRadiusRatio,0.3)-0.3)) * np.log(effectiveRadiusRatio))
+
+    def calculateFinEfficiency(self):
+        """
+        Calculates eta_f, the surface efficiency of the heat exchanger fins
+
+        Returns
+        -------
+        float
+            fin surface efficiency
+
+        """
+        mrPhi = self.calculateMFactor()*self.tubes.outerDiam/2*\
+            self.calculateSurfaceEfficiencyParam()
+        return np.tanh(mrPhi)/mrPhi*np.cos(0.1*mrPhi)
+
+    def calculateOverallSurfaceEfficiency(self):
+        """
+        Calculates eta_o, the overall surface efficiency of the heat exchanger
+
+        Returns
+        -------
+        float
+            overall surface efficiency
+
+        """
+        return 1 - self.calculateWettedAreaTotal()/\
+            self.totalArea*(1 - self.calculateFinEfficiency())
+
+    def calculateAirMassFlux(self):
+        """
+        Calculates G_c, the air side mass flux
+
+        Returns
+        -------
+        float
+            air side mass flux
+
+        """
+        return self.air.massFlowHumidAir/self.ductCrossSectionalArea
+
+    def calculateAirSidePressureDrop(self):
+        """
+        Calculates the pressure drop on the air side of the heat exchanger
+
+        Returns
+        -------
+        float
+            air side pressure drop
+
+        """
+        return self.totalArea/self.ductCrossSectionalArea/self.air.rhoHumidAir*\
+            self.calculateAirMassFlux()**2/2.0*self.calculateAirSideFrictionFactor()
+
+    def calculateAirSideFrictionFactor(self):
+        """
+        Calculates C_f, the friction factor for the air side, used to calculate
+        the air side pressure drop
+
+        Returns
+        -------
+        float
+            friction factor
+
+        """
+        return self.fins.calculateAirSideFrictionFactor(self.calculateReynoldsNumberAir(),
+                self.totalArea, self.tubes.calculateTubeOuterArea(),
+                self.fins.calculateOutsideDiameter(self.tubes.outerDiam),
+                self.tubes.numBanks, self.tubes.distOrtho, self.tubes.distFlow)
+
 if __name__=='__main__':
+    tf = HerringboneFins(finsPerInch=14.5, thickness=0.00011, thermalConductivity=237,
+                            amplitude=0.001, period=0.001)
 
     tubesTest = Tubes(numPerBank=32, numBanks=3, numCircuits=5, length=0.452, innerDiam=0.0089154,
                   outerDiam=0.009525, distFlow=0.0254, distOrtho=0.0219964,
@@ -933,17 +927,17 @@ if __name__=='__main__':
     airTest = Air(vDotHA=0.5663, tempDryBulb=299.8, pressure=101325,
               relativeHumidity=0.51, fanPower=438)
 
-    finsAndTubesWL = FinsAndTubes(fins=finsWL, tubes=tubesTest, air=airTest)
-    finsAndTubesH = FinsAndTubes(fins=finsH, tubes=tubesTest, air=airTest)
-    finsAndTubesP = FinsAndTubes(fins=finsP, tubes=tubesTest, air=airTest)
+    finnedTubeWL = FinnedTube(fins=finsWL, tubes=tubesTest, air=airTest)
+    finnedTubeH = FinnedTube(fins=finsH, tubes=tubesTest, air=airTest)
+    finnedTubeP = FinnedTube(fins=finsP, tubes=tubesTest, air=airTest)
 
-    print(finsAndTubesWL)
+    print(finnedTubeWL)
     print("Wavy-Louvered fins:","eta_a is:" + \
-            str(finsAndTubesWL.calculateOverallSurfaceEfficiency()) +
-            ", dP_a is:" + str(finsAndTubesWL.calculateAirsidePressureDrop()) +" Pa")
+            str(finnedTubeWL.calculateOverallSurfaceEfficiency()) +
+            ", dP_a is:" + str(finnedTubeWL.calculateAirSidePressureDrop()) +" Pa")
     print("Herringbone Fins fins:","eta_a is:" + \
-            str(finsAndTubesH.calculateOverallSurfaceEfficiency()) +
-            ", dP_a is:" + str(finsAndTubesH.calculateAirsidePressureDrop()) +" Pa")
-    print("Plain Fins fins:","eta_a is:" + str(finsAndTubesP.calculateOverallSurfaceEfficiency()) +
-            ", dP_a is:" + str(finsAndTubesP.calculateAirsidePressureDrop()) +" Pa")
+            str(finnedTubeH.calculateOverallSurfaceEfficiency()) +
+            ", dP_a is:" + str(finnedTubeH.calculateAirSidePressureDrop()) +" Pa")
+    print("Plain Fins fins:","eta_a is:" + str(finnedTubeP.calculateOverallSurfaceEfficiency()) +
+            ", dP_a is:" + str(finnedTubeP.calculateAirSidePressureDrop()) +" Pa")
     print("a graph for the fin correlations can be found here: " + r"\Documentation\Web\MPLPlots")

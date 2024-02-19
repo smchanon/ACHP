@@ -4,70 +4,74 @@ Created on Fri Dec 22 10:39:20 2023
 
 @author: SMCANANA
 """
+import logging
 import numpy as np
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
-from ACHP.models.FinsAndTubes import FinsAndTubes
-from ACHP.wrappers.coolPropWrapper import AbstractStateWrapper
+from ACHP.models.FinnedTube import FinnedTube
+from ACHP.models.Fluid import Fluid, ThermoProps, FluidApparatusProps
 from ACHP.DryWetSegment import DWSVals, DryWetSegment
-from ACHP.Correlations import f_h_1phase_Tube, ShahEvaporation_Average, LMPressureGradientAvg,\
-    AccelPressureDrop, TwoPhaseDensity, KandlikarEvaporation_average
+from ACHP.models.Correlations import f_h_1phase_Tube, ShahEvaporation_Average, LMPressureGradientAvg,\
+    calculateAccelerationalPressureDrop, twoPhaseDensity, KandlikarEvaporation_average
 
-class EvaporatorClass():
+class Evaporator():
     """
     Class for evaporator-specific calculations, hopefully
     """
-    def __init__(self, finsAndTubes: FinsAndTubes, refrigerant: str, backEnd: str,
-                 massFlowR: float, pressureSatR: float, enthalpyInR: float=None,
-                 qualityInR: float=None, verbosity=0, meanHeatTransferTuningFactor=1.0,
-                 hTpTuning=1.0, dPTuning=1.0):
+    def __init__(self, finnedTube: FinnedTube, refrigerant: Fluid, massFlowR: float,
+                 pressureSatR: float, enthalpyInR: float=None, qualityInR: float=None,
+                 meanHeatTransferTuningFactor=1.0, heatTransferCoeffRTuning=1.0,
+                 pressureDropRTuning=1.0):
         assert 0.000001 <= massFlowR <= 10.0, "Refrigerant mass flow must be between 0.000001 and 10.0"
         assert 0.001 <= pressureSatR <= 100000000, "Refrigerant saturated pressure must be between 0.001 and 100000000"
-        self.finsAndTubes = finsAndTubes
-        self.abstractState = AbstractStateWrapper(backEnd, refrigerant)
+        self.type = "Evaporator"
+        self.logger = logging.getLogger(self.type)
+        self.refrigerant = refrigerant
+        self.refrigerant.fluidApparatiProps[self.type] = FluidApparatusProps(enthalpyIn=enthalpyInR, 
+                                                                             pressureIn=pressureSatR)
+        self.finnedTube = finnedTube
         self.massFlowR = massFlowR
         self.pressureSatR = pressureSatR
-        self.verbosity = verbosity
+        self.fluidProps = self.refrigerant.fluidApparatiProps[self.type]
 
-        #TODO: these tuning factors don't need to be here
+        #TODO: these tuning factors probably don't need to be here
         self.meanHeatTransferTuningFactor = meanHeatTransferTuningFactor
-        self.hTpTuning = hTpTuning
-        self.dPTuning = dPTuning
+        self.heatTransferCoeffRTuning = heatTransferCoeffRTuning
+        self.pressureDropRTuning = pressureDropRTuning
 
         #standalone refrigerant values
-        self.tempSatLiquidR = self.abstractState.calculateTempFromPandQ(self.pressureSatR, 0.0)
-        self.enthalpySatLiquidR = self.abstractState.calculateEnthalpyFromPandQ(self.pressureSatR, 0.0)
-        self.entropySatLiquidR = self.abstractState.calculateEntropyFromQandT(0.0, self.tempSatLiquidR)
-        self.tempSatVaporR = self.abstractState.calculateTempFromPandQ(self.pressureSatR, 1.0)
-        self.enthalpySatVaporR = self.abstractState.calculateEnthalpyFromPandQ(self.pressureSatR, 1.0)
-        self.entropySatVaporR = self.abstractState.calculateEntropyFromQandT(1.0, self.tempSatVaporR)
+        self.tempSatLiquidR = self.refrigerant.calculateTemperature(ThermoProps.PQ, self.pressureSatR, 0.0)
+        self.enthalpySatLiquidR = self.refrigerant.calculateEnthalpy(ThermoProps.PQ, self.pressureSatR, 0.0)
+        self.entropySatLiquidR = self.refrigerant.calculateEntropy(ThermoProps.QT, 0.0, self.tempSatLiquidR)
+        self.tempSatVaporR = self.refrigerant.calculateTemperature(ThermoProps.PQ, self.pressureSatR, 1.0)
+        self.enthalpySatVaporR = self.refrigerant.calculateEnthalpy(ThermoProps.PQ, self.pressureSatR, 1.0)
+        self.entropySatVaporR = self.refrigerant.calculateEntropy(ThermoProps.QT, 1.0, self.tempSatVaporR)
         self.tempSatMean = (self.tempSatLiquidR + self.tempSatVaporR)/2 #TODO: used only once, is it necessary here??
         self.latentHeat = self.enthalpySatVaporR - self.enthalpySatLiquidR
 
         #refrigerant values for evaporator
-        self.qualityInR = qualityInR or (enthalpyInR - self.enthalpySatLiquidR)/\
-            (self.enthalpySatVaporR - self.enthalpySatLiquidR)
-        assert 0.0 <= qualityInR <= 1.0, 'Refrigerant quality must be between 0.0 and 1.0'
-        self.enthalpyInR = enthalpyInR or self.qualityInR*self.enthalpySatVaporR + \
-            (1 - self.qualityInR)*self.enthalpySatLiquidR
-        assert -100000 <= enthalpyInR <= 10000000, 'Refrigerant enthalpy in must be between -100000 and 10000000'
+        self.qualityInR = (enthalpyInR - self.enthalpySatLiquidR)/\
+            (self.enthalpySatVaporR - self.enthalpySatLiquidR) if qualityInR is None else qualityInR
+        assert 0.0 <= self.qualityInR <= 1.0, 'Refrigerant quality must be between 0.0 and 1.0'
+        self.enthalpyInR = self.qualityInR*self.enthalpySatVaporR + \
+            (1 - self.qualityInR)*self.enthalpySatLiquidR if enthalpyInR is None else enthalpyInR
+        assert -100000 <= self.enthalpyInR <= 10000000, 'Refrigerant enthalpy in must be between -100000 and 10000000'
         self.entropyInR = self.qualityInR*self.entropySatVaporR + (1 - self.qualityInR)*self.entropySatLiquidR
         self.tempInR = self.qualityInR*self.tempSatVaporR + (1 - self.qualityInR)*self.tempSatLiquidR
 
-        #evaporator values
-        self.effectiveCircuitLength = self.finsAndTubes.tubes.length*\
-            self.finsAndTubes.tubes.numPerBank*self.finsAndTubes.tubes.numBanks/\
-            self.finsAndTubes.tubes.numCircuits
-        self.areaWettedR = self.finsAndTubes.tubes.numCircuits*np.pi*\
-            self.finsAndTubes.tubes.innerDiam*self.effectiveCircuitLength
-        self.volumeMeanR = self.finsAndTubes.tubes.numCircuits*self.effectiveCircuitLength*np.pi*\
-            self.finsAndTubes.tubes.innerDiam**2/4.0
-        self.massFluxMeanR = self.massFlowR/(self.finsAndTubes.tubes.numCircuits*np.pi*\
-                                             self.finsAndTubes.tubes.innerDiam**2/4.0)
-        self.wallThermalResistance = np.log(self.finsAndTubes.tubes.outerDiam/self.finsAndTubes.tubes.innerDiam)/\
-            (2*np.pi*self.finsAndTubes.tubes.thermalConductivityWall*self.effectiveCircuitLength*\
-             self.finsAndTubes.tubes.numCircuits)
-        #TODO example h_in uses pressure at temperature 282K and quality of 1, and an actual quality of 0.15 why?
+        #tubes values
+        self.effectiveCircuitLength = self.finnedTube.tubes.length*\
+            self.finnedTube.tubes.numPerBank*self.finnedTube.tubes.numBanks/\
+            self.finnedTube.tubes.numCircuits
+        self.areaWettedR = self.finnedTube.tubes.numCircuits*np.pi*\
+            self.finnedTube.tubes.innerDiam*self.effectiveCircuitLength
+        self.volumeMeanR = self.finnedTube.tubes.numCircuits*self.effectiveCircuitLength*np.pi*\
+            self.finnedTube.tubes.innerDiam**2/4.0
+        self.massFluxMeanR = self.massFlowR/(self.finnedTube.tubes.numCircuits*np.pi*\
+                                             self.finnedTube.tubes.innerDiam**2/4.0)
+        self.wallThermalResistance = np.log(self.finnedTube.tubes.outerDiam/self.finnedTube.tubes.innerDiam)/\
+            (2*np.pi*self.finnedTube.tubes.thermalConductivityWall*self.effectiveCircuitLength*\
+             self.finnedTube.tubes.numCircuits)
         self.qualityOutTwoPhase = 1.0 #TODO: why?
 
         #two-phase outputs
@@ -76,10 +80,11 @@ class EvaporatorClass():
         self.heatTransferTwoPhaseSensible: float
 
         #superheat inputs?
+        #need to change f_h_1phase_Tube to accept Fluid instead of abstractState
         self.darcyFrictionFactorSuperheat, self.heatTransferCoeffSuperheatR, \
             self.reynoldsNumberSuperheatR = f_h_1phase_Tube(
-            self.massFlowR/self.finsAndTubes.tubes.numCircuits, self.finsAndTubes.tubes.innerDiam,
-            self.tempSatVaporR+3, self.pressureSatR, self.abstractState, "Single")
+            self.massFlowR/self.finnedTube.tubes.numCircuits, self.finnedTube.tubes.innerDiam,
+            self.tempSatVaporR+3, self.pressureSatR, self.refrigerant, "Single")
 
         #superheat outputs
         self.lengthFractionSuperheat: float
@@ -133,8 +138,8 @@ class EvaporatorClass():
         None.
 
         """
-        self.finsAndTubes.calculateOverallSurfaceEfficiency()
-        self.finsAndTubes.calculateAirsidePressureDrop()
+        self.finnedTube.calculateOverallSurfaceEfficiency()
+        self.finnedTube.calculateAirsidePressureDrop()
 
     def calculate(self):
         """
@@ -157,7 +162,7 @@ class EvaporatorClass():
         self.charge = self.chargeSuperheat + self.chargeTwoPhase
         if self.verbosity > 4:
             print(self.heatTransfer, "Evaporator.Q")
-        self.capacity = self.heatTransfer - self.finsAndTubes.air.fanPower
+        self.capacity = self.heatTransfer - self.finnedTube.air.fanPower
 
         #Sensible heat ratio [-]
         self.sensibleHeatRatio = (self.heatTransferTwoPhaseSensible +\
@@ -165,38 +170,39 @@ class EvaporatorClass():
         #Average air outlet temperature (area fraction weighted average) [K]
         self.tempOutAir = self.lengthFractionSuperheat*self.tempOutSuperheatAir +\
             self.lengthFractionTwoPhase*self.tempOutTwoPhaseAir
-        self.pressureDropR = (self.pressureDropSuperheatR + self.pressureDropTwoPhaseR)*self.dPTuning
+        self.pressureDropR = (self.pressureDropSuperheatR + self.pressureDropTwoPhaseR)*self.pressureDropRTuning
 
         #Outlet enthalpy obtained from energy balance
         self.enthalpyOutR = self.enthalpyInR+self.heatTransfer/self.massFlowR
 
         #Outlet entropy
         if existsSuperheat:
-            self.entropyOutR = self.abstractState.calculateEntropyFromPandT(self.pressureSatR,
+            self.entropyOutR = self.refrigerant.calculateEntropy(ThermoProps.PT, self.pressureSatR,
                                                                             self.tempOutR)
         else:
             qualityOutR = (self.enthalpyOutR - self.enthalpySatLiquidR)/\
                 (self.enthalpySatVaporR - self.enthalpySatLiquidR)
-            entropySatLiquidR = self.abstractState.calculateEntropyFromQandT(0.0, self.tempSatLiquidR)
-            entropySatVaporR = self.abstractState.calculateEntropyFromQandT(1.0, self.tempSatVaporR)
+            entropySatLiquidR = self.refrigerant.calculateEntropy(ThermoProps.QT, 0.0, self.tempSatLiquidR)
+            entropySatVaporR = self.refrigerant.calculateEntropy(ThermoProps.QT, 1.0, self.tempSatVaporR)
             self.entropyOutR = entropySatVaporR*qualityOutR + (1 - qualityOutR)*entropySatLiquidR
 
         #Outlet superheat and temperature (in case of two phase)
         if existsSuperheat:
             self.tempChangeSuperheat = self.tempOutR-self.tempSatVaporR
         else:
-            heatCapacitySuperheat = self.abstractState.calculateHeatCapacityFromQandT(1.0, self.tempSatVaporR)
+            heatCapacitySuperheat = self.refrigerant.calculateHeatCapacity(ThermoProps.QT, 1.0,
+                                                                           self.tempSatVaporR)
             #Effective superheat
             self.tempChangeSuperheat = (self.enthalpyOutR - self.enthalpySatVaporR)/\
                 heatCapacitySuperheat
-            self.tempOutR = self.abstractState.calculateTempFromPandQ(
+            self.tempOutR = self.refrigerant.calculateTemperature(ThermoProps.PQ,
                 self.pressureSatR + self.pressureDropR, qualityOutR)
         self.heatTransferCoeffMeanR = self.lengthFractionTwoPhase*self.heatTransferCoeffTwoPhase + \
             self.lengthFractionSuperheat*self.heatTransferCoeffSuperheatR
         self.heatTransferConductanceR = self.heatTransferCoeffMeanR*self.areaWettedR
-        self.heatTransferConductanceAir = (self.finsAndTubes.airSideMeanHeatTransfer*\
-                self.meanHeatTransferTuningFactor)*self.finsAndTubes.totalArea*\
-                self.finsAndTubes.calculateOverallSurfaceEfficiency()
+        self.heatTransferConductanceAir = (self.finnedTube.airSideMeanHeatTransfer*\
+                self.meanHeatTransferTuningFactor)*self.finnedTube.totalArea*\
+                self.finnedTube.calculateOverallSurfaceEfficiency()
         self.heatTransferConductanceWall = 1/self.wallThermalResistance
 
         #Build a vector of temperatures at each point where there is a phase transition
@@ -213,7 +219,7 @@ class EvaporatorClass():
         #Determine each bend temperature by interpolation
         #------------------------------------------------
         #Number of bends (including inlet and outlet of coil)
-        numBends = 1 + self.effectiveCircuitLength/self.finsAndTubes.tubes.length
+        numBends = 1 + self.effectiveCircuitLength/self.finnedTube.tubes.length
         #x-position of each point
         xVector = np.linspace(0,1,int(numBends))
 
@@ -258,7 +264,8 @@ class EvaporatorClass():
         self.dryFractionTwoPhase = dryWetSegment.f_dry
         self.tempOutTwoPhaseAir = dryWetSegment.Tout_a
 
-        rhoMean = TwoPhaseDensity(self.abstractState, self.qualityInR, self.qualityOutTwoPhase,
+        #TODO: change twoPhaseDensity to use Fluid instead of abstractState
+        rhoMean = twoPhaseDensity(self.refrigerant, self.qualityInR, self.qualityOutTwoPhase,
                     self.tempSatVaporR,self.tempSatLiquidR,slipModel='Zivi')
         self.chargeTwoPhase = rhoMean*self.lengthFractionTwoPhase*self.volumeMeanR
         self.pressureDropTwoPhaseR = self.calculatePressureDropR()
@@ -281,7 +288,7 @@ class EvaporatorClass():
         None.
 
         """
-        heatCapacityR = self.abstractState.calculateHeatCapacityFromPandT(self.pressureSatR,
+        heatCapacityR = self.refrigerant.calculateHeatCapacity(ThermoProps.PT, self.pressureSatR,
                 self.tempSatVaporR + 2.5)
         dryWetSegment = self.initializeDryWetSegment(lengthFractionSuperheat, self.tempSatVaporR,
                 heatCapacityR)
@@ -296,7 +303,7 @@ class EvaporatorClass():
         self.tempOutSuperheatAir = dryWetSegment.Tout_a
         self.tempOutR = dryWetSegment.Tout_r
 
-        rhoSuperheat = self.abstractState.calculateDensityFromPandT(self.pressureSatR,
+        rhoSuperheat = self.refrigerant.calculateDensity(ThermoProps.PT, self.pressureSatR,
                     (dryWetSegment.Tout_r + self.tempSatVaporR)/2.0)
         self.chargeSuperheat = self.lengthFractionSuperheat*self.volumeMeanR*rhoSuperheat
         self.pressureDropSuperheatR = self.calculatePressureDropR(rhoSuperheat, False)
@@ -327,20 +334,20 @@ class EvaporatorClass():
 
         """
         dryWetSegment = DWSVals()
-        dryWetSegment.Fins = self.finsAndTubes
-        dryWetSegment.FinsType = self.finsAndTubes.fins.finType
-        dryWetSegment.A_a = self.finsAndTubes.totalArea*quality
-        dryWetSegment.cp_da = self.finsAndTubes.air.heatCapacityDryAir
-        dryWetSegment.eta_a = self.finsAndTubes.calculateOverallSurfaceEfficiency()
-        dryWetSegment.h_a = self.finsAndTubes.airSideMeanHeatTransfer*\
+        dryWetSegment.Fins = self.finnedTube
+        dryWetSegment.FinsType = self.finnedTube.fins.finType
+        dryWetSegment.A_a = self.finnedTube.totalArea*quality
+        dryWetSegment.cp_da = self.finnedTube.air.heatCapacityDryAir
+        dryWetSegment.eta_a = self.finnedTube.calculateOverallSurfaceEfficiency()
+        dryWetSegment.h_a = self.finnedTube.airSideMeanHeatTransfer*\
             self.meanHeatTransferTuningFactor
-        dryWetSegment.mdot_da = self.finsAndTubes.air.massFlowDryAir*quality
-        dryWetSegment.pin_a = self.finsAndTubes.air.pressure
+        dryWetSegment.mdot_da = self.finnedTube.air.massFlowDryAir*quality
+        dryWetSegment.pin_a = self.finnedTube.air.pressure
         dryWetSegment.Tdew_r = self.tempSatVaporR
         dryWetSegment.Tbubble_r = self.tempSatLiquidR
 
-        dryWetSegment.Tin_a = self.finsAndTubes.air.tempDryBulb
-        dryWetSegment.RHin_a = self.finsAndTubes.air.relativeHumidity
+        dryWetSegment.Tin_a = self.finnedTube.air.tempDryBulb
+        dryWetSegment.RHin_a = self.finnedTube.air.relativeHumidity
 
         dryWetSegment.Tin_r = tempInR
         dryWetSegment.A_r = self.areaWettedR*quality
@@ -383,25 +390,26 @@ class EvaporatorClass():
             if not dryWetSegment:
                 raise TypeError('In the two-phase section, dryWetSegment must be defined.')
             try:
-                if self.abstractState.fluid in 'CarbonDioxide':
+                #TODO: change these to accept Fluid instead of abstractState
+                if self.refrigerant.name in 'CarbonDioxide':
                     heatTransferCoeffR = KandlikarEvaporation_average(self.qualityInR,
-                        self.qualityOutTwoPhase, self.abstractState, self.massFluxMeanR,
-                        self.finsAndTubes.tubes.innerDiam, self.pressureSatR,
+                        self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
+                        self.finnedTube.tubes.innerDiam, self.pressureSatR,
                         heatTransferTarget/dryWetSegment.A_r,self.tempSatLiquidR,
                         self.tempSatVaporR)
                 else:
                     heatTransferCoeffR = ShahEvaporation_Average(self.qualityInR,
-                        self.qualityOutTwoPhase, self.abstractState, self.massFluxMeanR,
-                        self.finsAndTubes.tubes.innerDiam, self.pressureSatR,
+                        self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
+                        self.finnedTube.tubes.innerDiam, self.pressureSatR,
                         heatTransferTarget/dryWetSegment.A_r, self.tempSatLiquidR,
                         self.tempSatVaporR)
             except:
                 heatTransferCoeffR = ShahEvaporation_Average(self.qualityInR,
-                        self.qualityOutTwoPhase, self.abstractState, self.massFluxMeanR,
-                        self.finsAndTubes.tubes.innerDiam, self.pressureSatR,
+                        self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
+                        self.finnedTube.tubes.innerDiam,
                         heatTransferTarget/dryWetSegment.A_r,self.tempSatLiquidR,
                         self.tempSatVaporR)
-            heatTransferCoeffR = heatTransferCoeffR*self.hTpTuning
+            heatTransferCoeffR = heatTransferCoeffR*self.heatTransferCoeffRTuning
         else:
             #Use a guess value of 6K superheat to calculate the properties
             heatTransferCoeffR = self.heatTransferCoeffSuperheatR
@@ -430,24 +438,25 @@ class EvaporatorClass():
 
         """
         if isTwoPhase:
+            #TODO: change these to accept Fluid instead of abstractState
             frictionalPressureDrop = LMPressureGradientAvg(self.qualityInR,
-                        self.qualityOutTwoPhase, self.abstractState, self.massFluxMeanR,
-                        self.finsAndTubes.tubes.innerDiam, self.tempSatLiquidR,
+                        self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
+                        self.finnedTube.tubes.innerDiam, self.tempSatLiquidR,
                         self.tempSatVaporR)*self.effectiveCircuitLength*self.lengthFractionTwoPhase
             try:
-                if self.abstractState.fluid in 'CarbonDioxide':
-                    accelPressureDropTwoPhaseR = AccelPressureDrop(self.qualityInR,
-                        self.qualityOutTwoPhase, self.abstractState, self.massFluxMeanR,
-                        self.tempSatLiquidR, self.tempSatVaporR,D=self.finsAndTubes.tubes.innerDiam,
+                if self.refrigerant.name in 'CarbonDioxide':
+                    accelPressureDropTwoPhaseR = calculateAccelerationalPressureDrop(self.qualityInR,
+                        self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
+                        self.tempSatLiquidR, self.tempSatVaporR,D=self.finnedTube.tubes.innerDiam,
                         slipModel='Premoli')*self.effectiveCircuitLength*self.lengthFractionTwoPhase
                 else:
-                    accelPressureDropTwoPhaseR = AccelPressureDrop(self.qualityInR,
-                        self.qualityOutTwoPhase, self.abstractState, self.massFluxMeanR,
+                    accelPressureDropTwoPhaseR = calculateAccelerationalPressureDrop(self.qualityInR,
+                        self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
                         self.tempSatLiquidR, self.tempSatVaporR, slipModel='Zivi')*\
                         self.effectiveCircuitLength*self.lengthFractionTwoPhase
             except:
-                accelPressureDropTwoPhaseR = AccelPressureDrop(self.qualityInR,
-                        self.qualityOutTwoPhase, self.abstractState, self.massFluxMeanR,
+                accelPressureDropTwoPhaseR = calculateAccelerationalPressureDrop(self.qualityInR,
+                        self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
                         self.tempSatLiquidR, self.tempSatVaporR, slipModel='Zivi')*\
                         self.effectiveCircuitLength*self.lengthFractionTwoPhase
             pressureDropR = frictionalPressureDrop + accelPressureDropTwoPhaseR
@@ -457,7 +466,7 @@ class EvaporatorClass():
             specificVolumeR = 1/density
             #Pressure gradient using Darcy friction factor
             pressureGradientR = -self.darcyFrictionFactorSuperheat*specificVolumeR*\
-                self.massFluxMeanR**2/(2*self.finsAndTubes.tubes.innerDiam)  #Pressure gradient
+                self.massFluxMeanR**2/(2*self.finnedTube.tubes.innerDiam)  #Pressure gradient
             pressureDropR = pressureGradientR*self.effectiveCircuitLength*\
                 self.lengthFractionSuperheat
         return pressureDropR

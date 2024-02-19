@@ -4,7 +4,7 @@ from CoolProp.CoolProp import HAPropsSI, cair_sat
 from ACHP.FinCorrelations import WavyLouveredFins, HerringboneFins, PlainFins
 from ACHP.MicroFinCorrelations import MultiLouveredMicroFins
 
-from ACHP.wrappers.coolPropWrapper import HumidAirPropertiesWrapper
+from ACHP.wrappers.CoolPropWrapper import HumidAirPropertiesWrapper
 
 class DWSVals():
     """ 

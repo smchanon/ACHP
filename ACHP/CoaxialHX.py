@@ -5,6 +5,7 @@ from ACHP.Correlations import TwoPhaseDensity,LMPressureGradientAvg,AccelPressur
 from math import pi,exp,log
 from scipy.optimize import brentq
 import numpy as np
+import pylab
 import CoolProp as CP
 
 class CoaxialHXClass():
@@ -120,6 +121,7 @@ class CoaxialHXClass():
         
         #Inlet quality        
         self.xin_r=(self.hin_r-hsatL)/(hsatV-hsatL)
+        #print("xin_r: ", self.xin_r)
         
         #Change in enthalpy through two-phase region [J/kg]
         self.h_fg=hsatV - hsatL
@@ -159,6 +161,7 @@ class CoaxialHXClass():
         self.T_g_x=self.Tin_g
         #Call two-phase forward method
         error=self._TwoPhase_Forward(1.0)
+        #("error: ", error)
         # If HT greater than required
         if error>0:
             #Too much HT if all is 2phase, there is a superheated section
@@ -282,7 +285,7 @@ if __name__=='__main__':
     TT=[]
     QQ=[]
     Q1=[]
-    #refigearnt Abstract State
+    #refigerant Abstract State
     Ref_r = 'R290'
     Backend_r = 'HEOS' #choose between: 'HEOS','TTSE&HEOS','BICUBIC&HEOS','REFPROP','SRK','PR'
     AS_r = CP.AbstractState(Backend_r, Ref_r)
@@ -323,3 +326,6 @@ if __name__=='__main__':
         Q1.append(IHX.h_r_superheat)
                   
         print (IHX.Q)
+    pylab.plot(TT,QQ)
+    pylab.plot(TT,Q1)
+    pylab.show()

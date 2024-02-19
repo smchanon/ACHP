@@ -47,12 +47,38 @@ def K2C(T_K):
     """Convert temperature in Kelvin to Celsius"""
     return T_K-273.15
 def K2F(T_K):
-    """Convert temperature in Kelvin to Fahrenheit"""
+    """
+    Converts temperatures from Kelvin to Fahrenheit
+    
+    Parameters
+    ----------
+    temperature : float
+        temperature in Kelvin
+    
+    Returns
+    -------
+    float
+        temperature in Fahrenheit
+    
+    """
     return T_K * 9.0/5.0 - 459.67
 
 """##### Massflow    ####################################"""
 def lbh2kgs(lbh):
-    """Convert pound per hour to kilogramms per second"""
+    """
+    Converts lbm/hr to kg/s
+
+    Parameters
+    ----------
+    lbmph : float
+        mass flow in lbm/hr
+
+    Returns
+    -------
+    float
+        mass flow in kg/s
+
+    """
     return 0.000125998*lbh #0.45359237 [kg/lbm]/3600 [s/h]
 def lbm2kgs(lbm):
     """Convert pound per minute to kilogramms per second"""

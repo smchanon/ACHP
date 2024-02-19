@@ -5,6 +5,7 @@ from scipy.optimize import brentq,fsolve
 import numpy as np
 import CoolProp as CP
 import CoolProp
+import logging
 
 try:
     import psyco
@@ -29,7 +30,9 @@ def TrhoPhase_ph(AS,p,h,Tbubble,Tdew,rhosatL=None,rhosatV=None):
     AS : AbstractState with the refrigerant name and backend
     """
 
-    if 'IncompressibleBackend' in AS.backend_name():
+    backEnd = getattr(AS, "backEnd", AS.backend_name())
+    if 'IncompressibleBackend' in backEnd:
+        # print("It is subcooled")
         #It is subcooled
         AS.update(CP.HmassP_INPUTS,h,p)
         T=AS.T() #[K]
@@ -42,8 +45,10 @@ def TrhoPhase_ph(AS,p,h,Tbubble,Tdew,rhosatL=None,rhosatV=None):
         T=AS.T() #[K]
         rho=AS.rhomass() #[kg/m^3]
         if T >= AS.T_critical():
+            # print("It is supercritical")
             return T,rho,'Supercritical'
         else:
+            # print("It is supercritical liquid")
             return T,rho,'Supercrit_liq' 
     else: #It is subcritical
         if rhosatL==None:
@@ -59,12 +64,14 @@ def TrhoPhase_ph(AS,p,h,Tbubble,Tdew,rhosatL=None,rhosatV=None):
         hsatV=AS.hmass() #[J/kg]
         
         if h>hsatV:#It's superheated
+            # print("It is superheated")
             AS.update(CP.HmassP_INPUTS,h,p)
             cp=AS.cpmass() #[J/kg-]
             T=AS.T() #[K]
             rho=AS.rhomass() #[kg/m^3]
             return T,rho,'Superheated'
         elif h<hsatL:# It's subcooled
+            # print("It is subcooled")
             AS.update(CP.HmassP_INPUTS,h,p)
             cp=AS.cpmass() #[J/kg-]
             T=AS.T() #[K]
@@ -72,6 +79,7 @@ def TrhoPhase_ph(AS,p,h,Tbubble,Tdew,rhosatL=None,rhosatV=None):
             return T,rho,'Subcooled'
         else:
             #It's two-phase
+            # print("It is TwoPhase")
             x=(h-hsatL)/(hsatV-hsatL) #[-]
             v=x*vsatV+(1-x)*vsatL #[m^3/kg]
             T=x*Tdew+(1-x)*Tbubble #[K]
@@ -806,7 +814,7 @@ def PHE_1phase_hdP(Inputs,JustGeo=False):
          
          phi is the inclination angle
     """
-        
+    logging.basicConfig(filename='correlations.log', encoding='utf-8', level=logging.INFO)
         
     #Plate parameters
     PlateAmplitude = Inputs['PlateAmplitude']
@@ -842,6 +850,7 @@ def PHE_1phase_hdP(Inputs,JustGeo=False):
         #Also calculate the thermodynamics and pressure drop
         
         #Single phase Fluid properties
+        logging.debug("pressure: %f, temperature: %f", p, T)
         AS.update(CP.PT_INPUTS, p, T)
         rho_g=AS.rhomass() #[kg/m^3]
         eta_g=AS.viscosity() #Viscosity[Pa-s]
@@ -887,6 +896,23 @@ def PHE_1phase_hdP(Inputs,JustGeo=False):
         #Pressure drop 
         DELTAP=Hg*eta_g**2*Lp/(rho_g*dh**3)
         
+        logging.debug(f"densityGap: {rho_g}")
+        logging.debug(f"viscosityGap: {eta_g}")
+        logging.debug(f"heatCapacityGap: {cp_g}")
+        logging.debug(f"conductivityGap: {k_g}")
+        logging.debug(f"prandtlNumGap: {Pr_g}")
+        logging.debug(f"viscosityGapW: {eta_g_w}")
+        logging.debug(f"velocityGap: {w_g}")
+        logging.debug(f"reynoldsNumGap: {Re_g}")
+        logging.debug(f"zeta0: {zeta0}")
+        logging.debug(f"zeta1zero: {zeta1_0}")
+        logging.debug(f"zeta1: {zeta1}")
+        logging.debug(f"rhs: {RHS}")
+        logging.debug(f"zeta: {zeta}")
+        logging.debug(f"hagenNum: {Hg}")
+        logging.debug(f"nusseltNum: {Nu}")
+        logging.debug(f"heatTransferCoeff: {h}")
+        logging.debug(f"pressureDrop: {DELTAP}")
         # There are quite a lot of things that might be useful to have access to
         # in outer functions, so pack up parameters into a dictionary
         Outputs={
