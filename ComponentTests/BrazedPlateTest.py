@@ -134,7 +134,7 @@ def BDW16DW():
     coolant = Fluid("MEG", "IncompressibleBackend", massFraction=0.50)
     T_R_cond_in = 65 + 273.15
     T_W_supply_in = 20 + 273.15
-    p_R_in = 7000000 # 7500000 Pa
+    p_R_in = 7500000 # 7500000 Pa
     p_W_in = 100000 #Pa
     mf_W_condenser = 1200/(60*60) #kg/h / (min/h*sec/min)
     mf_R_cycle = 750/(60*60) #kg/h / (min/h*sec/min)
@@ -161,13 +161,17 @@ def BDW16DW():
         }
     plateHEX = BrazedPlateHEX(**params)
     plateHEX.calculate()
-    print(plateHEX.fluidProps['Hot'].tempOut - 273.15)
-    print(plateHEX.fluidProps['Cold'].tempOut - 273.15)
+    print(T_R_cond_in)
+    print(T_W_supply_in)
+    print(plateHEX.fluidProps['Hot'].tempOut)
+    print(plateHEX.fluidProps['Cold'].tempOut)
 
 if __name__=='__main__':
     logging.basicConfig(filename="ACHPlog.log", level=logging.DEBUG, encoding='utf-8',
-                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    BDW16DW()
-    # samplePHEHX()
-    #WyattPHEHX() #has two-phase to two-phase heat transfer, which is not yet implemented
+                        # format='%(asctime)s - %(name)s.%(funcName)s - %(levelname)s - %(message)s')
+                        format='%(asctime)s - %(name)s.%(methodname)s - %(levelname)s - %(message)s')
+    #TODO: implement test brazed plate with two-phase hot and one-phase cold
+    BDW16DW() # transcrit to one-phase
+    # samplePHEHX() # one-phase to one-phase
+    # WyattPHEHX() #has two-phase to two-phase heat transfer, which is not yet implemented
     # SWEPVariedmdot()

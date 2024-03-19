@@ -146,8 +146,34 @@ class AbstractStateWrapper():
         self.propsSIName = f"{backEnd}::{fluid}-{massFraction*100}%"
 
     def getMeltingTemperature(self, pressure):
+        """
+        CoolProp wrapper method to get the melting temperature of the fluid
+
+        Parameters
+        ----------
+        pressure : float
+            Pressure of the fluid.
+
+        Returns
+        -------
+        tempMelt
+            Melting temperature of the fluid
+
+        """
         if self.abstractState.has_melting_line():
             return self.abstractState.melting_line(CP.iT, CP.iP, pressure)
+        
+    def getIsobaricExpansionCoefficient(self):
+        """
+        CoolProp wrapper method to get the isobaric expansion coefficient of the fluid
+
+        Returns
+        -------
+        isobaricExpansionCoefficient: float
+            Isobaric expansion coefficient of fluid
+
+        """
+        return self.abstractState.isobaric_expansion_coefficient()
         
     def setMassFraction(self, massFraction):
         """
@@ -185,7 +211,7 @@ class AbstractStateWrapper():
 
     def calculateCriticalPressure(self):
         """
-        CoolProp wrapper method to calculate the critical pressure of the fluid
+        CoolProp wrapper method to calculate the critical pressure of the fluid in Pa
 
         Returns
         -------
@@ -200,7 +226,25 @@ class AbstractStateWrapper():
             self.logger.info("Could not find critical pressure for %s. Giving critical pressure for water.",
                                   self.name)
             return PropsSIWrapper().calculatePCritical('Water')
-    
+
+    def calculateCriticalTemperature(self):
+        """
+        CoolProp wrapper method to calculate the critical temperature of the fluid in K
+
+        Returns
+        -------
+        criticalTemperature : float
+            Critical temperature of the fluid.
+
+        """
+        try:
+            self.logger.debug("Critical temperature for %s: %g", self.name, self.abstractState.p_critical())
+            return self.abstractState.T_critical()
+        except ValueError:
+            self.logger.info("Could not find critical temperature for %s. Giving critical temperature for water.",
+                                  self.name)
+            return PropsSIWrapper().calculateTCritical('Water')
+
     def calculateMassMolar(self):
         """
         Calculates the molar mass of the fluid in kg/mol.
@@ -214,7 +258,8 @@ class AbstractStateWrapper():
         try:
             return self.abstractState.molar_mass()*1000
         except ValueError:
-            self.logger.info("Molar mass cannot be calculated by CoolProp. Calculating molar mass by fraction.")
+            self.logger.info("Molar mass cannot be calculated by CoolProp. Calculating molar mass by fraction.",
+                             extra={"methodname": self.calculateMassMolar.__name__})
             propsSI = PropsSIWrapper()
             massMolarWater = propsSI.calculateMolarMass('Water')*self.massFractions['Water']
             if self.name == "MEG": massMolarFluid = 62.068*self.massFractions[self.name]
@@ -737,6 +782,9 @@ class PropsSIWrapper():
     
     def calculatePCritical(self, name):
         return PropsSI("PCRIT", name)
+    
+    def calculateTCritical(self, name):
+        return PropsSI("TCRIT", name)
     
     def calculateMolarMass(self, name):
         return PropsSI("MOLARMASS", name)

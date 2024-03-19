@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d
 from ACHP.models.FinnedTube import FinnedTube
 from ACHP.models.Fluid import Fluid, ThermoProps, FluidApparatusProps
 from ACHP.DryWetSegment import DWSVals, DryWetSegment
-from ACHP.models.Correlations import f_h_1phase_Tube, ShahEvaporation_Average, LMPressureGradientAvg,\
+from ACHP.models.Correlations import f_h_1phase_Tube, ShahEvaporation_Average, lmPressureGradientAvg,\
     calculateAccelerationalPressureDrop, twoPhaseDensity, KandlikarEvaporation_average
 
 class Evaporator():
@@ -34,7 +34,6 @@ class Evaporator():
         self.pressureSatR = pressureSatR
         self.fluidProps = self.refrigerant.fluidApparatiProps[self.type]
 
-        #TODO: these tuning factors probably don't need to be here
         self.meanHeatTransferTuningFactor = meanHeatTransferTuningFactor
         self.heatTransferCoeffRTuning = heatTransferCoeffRTuning
         self.pressureDropRTuning = pressureDropRTuning
@@ -439,7 +438,7 @@ class Evaporator():
         """
         if isTwoPhase:
             #TODO: change these to accept Fluid instead of abstractState
-            frictionalPressureDrop = LMPressureGradientAvg(self.qualityInR,
+            frictionalPressureDrop = lmPressureGradientAvg(self.qualityInR,
                         self.qualityOutTwoPhase, self.refrigerant, self.massFluxMeanR,
                         self.finnedTube.tubes.innerDiam, self.tempSatLiquidR,
                         self.tempSatVaporR)*self.effectiveCircuitLength*self.lengthFractionTwoPhase

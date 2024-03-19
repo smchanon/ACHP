@@ -620,6 +620,8 @@ def Petterson_supercritical_average(Tout,Tin,T_w,AS,G,OD,ID,D_l,mdot,p,q_flux_w)
         return Petterson_supercritical(Tout,T_w,AS,G,OD,ID,D_l,mdot,p,q_flux_w)
 
 def Petterson_supercritical(T,T_w,AS,G,OD,ID,D_l,mdot,p,q_flux_w):
+    print(f"p: {p}")
+    print(f"T_w: {T_w}")
     AS.update(CP.PT_INPUTS,p,T_w)
     h_w = AS.hmass() #[J/kg]
     mu_w = AS.viscosity() #[Pa-s OR kg/m-s]
@@ -896,6 +898,8 @@ def PHE_1phase_hdP(Inputs,JustGeo=False):
         #Pressure drop 
         DELTAP=Hg*eta_g**2*Lp/(rho_g*dh**3)
         
+        logging.debug(f"PHI: {PHI}")
+        logging.debug(f"diameterHydraulic: {dh}")
         logging.debug(f"densityGap: {rho_g}")
         logging.debug(f"viscosityGap: {eta_g}")
         logging.debug(f"heatCapacityGap: {cp_g}")

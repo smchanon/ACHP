@@ -1722,7 +1722,7 @@ def BDW16DW():
     AS_c.set_mass_fractions([0.50])
     T_W_supply_in = 20 + 273.15
     T_R_cond_in = 65 + 273.15
-    p_r_in = 7000000 # 7500000 Pa
+    p_r_in = 7500000 # 7500000 Pa
     p_W_in = 100000 #Pa
     mf_W_condenser = 1200/(60*60) #kg/h / (min/h*sec/min)
     mf_R_cycle = 750/(60*60) #kg/h / (min/h*sec/min)
@@ -1749,7 +1749,7 @@ def BDW16DW():
         'Nplates' : 12,
         'PlateAmplitude' : volume_channel_single/(0.072*0.329*2), #[m]
         'PlateThickness' : 0.0003, #[m]
-        'PlateWavelength' : 0.00, #[m]
+        'PlateWavelength' : 0.00626, #[m]
         'InclinationAngle' : 0.25*pi,#[rad]
         'PlateConductivity' : 15.37546, #[W/m-K]
         'Rp': 1.0, #[microns] Surface roughness

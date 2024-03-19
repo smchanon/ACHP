@@ -57,6 +57,9 @@ class Fluid():
 
     def getMeltingTemperature(self, pressure):
         return self.abstractState.getMeltingTemperature(pressure)
+    
+    def getIsobaricExpansionCoefficient(self):
+        return self.abstractState.getIsobaricExpansionCoefficient()
 
     def calculateCriticalPressure(self):
         """
@@ -69,6 +72,18 @@ class Fluid():
 
         """
         return self.abstractState.calculateCriticalPressure()
+
+    def calculateCriticalTemperature(self):
+        """
+        Calculates the critical temperature of the fluid in K.
+
+        Returns
+        -------
+        temperature : float
+            critical temperature of the fluid in K.
+
+        """
+        return self.abstractState.calculateCriticalTemperature()
     
     def calculateMassMolar(self):
         """
