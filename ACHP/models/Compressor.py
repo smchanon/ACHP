@@ -4,10 +4,10 @@ Created on Fri Dec 22 07:27:43 2023
 
 @author: SMCANANA
 """
-from ACHP.wrappers.CoolPropWrapper import PropsSIWrapper
 from ACHP.models.Fluid import Fluid, ThermoProps
+#TODO: these two need to be moved
 from ACHP.OilPropLib import Solubility_Ref_in_Liq, rho_oil
-from ACHP.convert_units import K2F, lbh2kgs
+from ACHP.calculations.UnitConversions import TemperatureConversions, lbh2kgs
 
 class Compressor():
     """
@@ -116,8 +116,8 @@ class Compressor():
         self.tempSatSuperheatK = self.refrigerant.calculateTemperature(ThermoProps.PQ, self.pressureInR, 1.0)
         self.tempSatDewK = self.refrigerant.calculateTemperature(ThermoProps.PQ, self.pressureOutR, 1.0)
         self.dTSuperheatK = self.tempInR-self.tempSatSuperheatK
-        tempSatSuperheatF = K2F(self.tempSatSuperheatK)
-        tempSatDewF = K2F(self.tempSatDewK)
+        tempSatSuperheatF = TemperatureConversions().kelvinToFahrenheit(self.tempSatSuperheatK)
+        tempSatDewF = TemperatureConversions().kelvinToFahrenheit(self.tempSatDewK)
 
         powerMap = self.applyCoeffs(tempSatDewF, tempSatSuperheatF, self.powerCoeffs)
         massFlowMap = self.applyCoeffs(tempSatDewF, tempSatSuperheatF, self.massFlowCoeffs)
@@ -146,7 +146,7 @@ class Compressor():
             (h2sMap - enthalpyMap)
 
         self.enthalpyOutR = self.power*(1 - self.ambientPowerLoss)/self.massFlowR + self.enthalpyInR
-        self.overallIsentropicEfficiency=self.massFlowR*(h2sActual-self.enthalpyInR)/(self.power)
+        self.overallIsentropicEfficiency = self.massFlowR*(h2sActual - self.enthalpyInR)/(self.power)
 
         self.tempOutR = self.refrigerant.calculateTemperature(ThermoProps.HP, self.enthalpyOutR,
                                                               self.pressureOutR)
@@ -219,32 +219,3 @@ class Compressor():
 
         """
         return parameterMap*ratio
-
-if __name__=='__main__':
-    #Abstract State
-    REFRIGERANT = 'R134a'
-    BACKEND = 'HEOS' #choose between: 'HEOS','TTSE&HEOS','BICUBIC&HEOS','REFPROP','SRK','PR'
-    ref = Fluid(REFRIGERANT, BACKEND)
-    propsSI = PropsSIWrapper()
-    for j in range(1):
-        kwds={
-              'massFlowCoeffs':[217.3163128,5.094492028,-0.593170311,4.38E-02,-2.14E-02,
-                                1.04E-02,7.90E-05,-5.73E-05,1.79E-04,-8.08E-05],
-              'powerCoeffs':[-561.3615705,-15.62601841,46.92506685,-0.217949552,0.435062616,
-                             -0.442400826,2.25E-04,2.37E-03,-3.32E-03,2.50E-03],
-              'refrigerant': ref,
-              'tempInR':280,
-              'pressureInR':propsSI.calculatePressureFromTandQ(REFRIGERANT, 279,1),
-              'pressureOutR':propsSI.calculatePressureFromTandQ(REFRIGERANT, 315,1),
-              'ambientPowerLoss':0.15, #Fraction of electrical power lost as heat to ambient
-              'vDotRatio': 1.0, #Displacement Scale factor
-              'shellPressure': 'low-pressure',
-              'oil': 'POE32',
-              'volumeOilSump': 0.0,
-              }
-        Comp = Compressor(**kwds)
-        Comp.calculate()
-        print ('Power:', Comp.power,'W')
-        print ('Flow rate:',Comp.vDotPumped,'m^3/s')
-        print ('Heat loss rate:', Comp.ambientHeatLoss, 'W')
-        print ('Refrigerant dissolved in oil sump:', Comp.refrigerantChangeOilSump,'kg')

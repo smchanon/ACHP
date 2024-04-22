@@ -24,7 +24,7 @@ class HumidAirPropertiesWrapper():
     """
     def __init__(self):
         self.logger = logging.getLogger("HumidAirPropertiesWrapper")
-    
+
     def calculateHumidityRatio(self, temperature, pressure, relativeHumidity):
         """
         Given a temperature, pressure, and relative humidity, calculates the humidity
@@ -162,7 +162,7 @@ class AbstractStateWrapper():
         """
         if self.abstractState.has_melting_line():
             return self.abstractState.melting_line(CP.iT, CP.iP, pressure)
-        
+
     def getIsobaricExpansionCoefficient(self):
         """
         CoolProp wrapper method to get the isobaric expansion coefficient of the fluid
@@ -174,7 +174,7 @@ class AbstractStateWrapper():
 
         """
         return self.abstractState.isobaric_expansion_coefficient()
-        
+
     def setMassFraction(self, massFraction):
         """
         CoolProp wrapper method to set the mass fraction of an incompressible fluid
@@ -220,11 +220,11 @@ class AbstractStateWrapper():
 
         """
         try:
-            self.logger.debug("Critical pressure for %s: %g", self.name, self.abstractState.p_critical())
+            self.logger.debug("Critical pressure for %s: %g", self.name, self.abstractState.p_critical(), extra={"methodname": self.calculateCriticalPressure.__name__})
             return self.abstractState.p_critical()
         except ValueError:
             self.logger.info("Could not find critical pressure for %s. Giving critical pressure for water.",
-                                  self.name)
+                                  self.name, extra={"methodname": self.calculateCriticalPressure.__name__})
             return PropsSIWrapper().calculatePCritical('Water')
 
     def calculateCriticalTemperature(self):
@@ -238,11 +238,11 @@ class AbstractStateWrapper():
 
         """
         try:
-            self.logger.debug("Critical temperature for %s: %g", self.name, self.abstractState.p_critical())
+            self.logger.debug("Critical temperature for %s: %g", self.name, self.abstractState.p_critical(), extra={"methodname": self.calculateCriticalTemperature.__name__})
             return self.abstractState.T_critical()
         except ValueError:
             self.logger.info("Could not find critical temperature for %s. Giving critical temperature for water.",
-                                  self.name)
+                                  self.name, extra={"methodname": self.calculateCriticalTemperature.__name__})
             return PropsSIWrapper().calculateTCritical('Water')
 
     def calculateMassMolar(self):
@@ -254,7 +254,7 @@ class AbstractStateWrapper():
         massMolar : float
             molar mass of the fluid in kg/mol.
 
-        """ 
+        """
         try:
             return self.abstractState.molar_mass()*1000
         except ValueError:
@@ -665,7 +665,7 @@ class AbstractStateWrapper():
         """
         self.abstractState.update(CP.QT_INPUTS, quality, temperature)
         return self.abstractState.cpmass()
-    
+
     def calculatePressureFromQandT(self, quality, temperature):
         """
         CoolProp wrapper method to calculate the pressure of the fluid
@@ -686,7 +686,7 @@ class AbstractStateWrapper():
         """
         self.abstractState.update(CP.QT_INPUTS, quality, temperature)
         return self.abstractState.p()
-    
+
     def calculateSurfaceTensionFromPandQ(self, pressure, quality):
         """
         CoolProp wrapper method to calculate the pressure of the fluid
@@ -707,7 +707,7 @@ class AbstractStateWrapper():
         """
         self.abstractState.update(CP.PQ_INPUTS, pressure, quality)
         return self.abstractState.surface_tension()
-    
+
 
     def calculateViscosityFromPandT(self, pressure, temperature):
         """
@@ -779,13 +779,13 @@ class PropsSIWrapper():
     """
     def __init__(self):
         self.logger = logging.getLogger("PropsSIWrapper")
-    
+
     def calculatePCritical(self, name):
         return PropsSI("PCRIT", name)
-    
+
     def calculateTCritical(self, name):
         return PropsSI("TCRIT", name)
-    
+
     def calculateMolarMass(self, name):
         return PropsSI("MOLARMASS", name)
 
@@ -809,7 +809,7 @@ class PropsSIWrapper():
 
         """
         return PropsSI('H', 'P', pressure, 'Q', quality, fluid.name)
-    
+
     def calculateEnthalpyFromTandP(self, fluid, temperature, pressure):
         """
         Calculates enthalpy of saved fluid from temperature and pressure
@@ -830,7 +830,7 @@ class PropsSIWrapper():
 
         """
         return PropsSI('H', 'T', temperature, 'P', pressure, fluid.name)
-    
+
     def calculateEnthalpyFromTandQ(self, fluid, temperature, quality):
         """
         Calculates enthalpy of saved fluid from temperature and vapor quality
@@ -851,7 +851,7 @@ class PropsSIWrapper():
 
         """
         return PropsSI('H', 'T', temperature, 'Q', quality, fluid.name)
-    
+
     def calculatePressureFromTandQ(self, fluid, temperature, quality):
         """
         Calculates pressure of saved fluid from temperature and vapor quality

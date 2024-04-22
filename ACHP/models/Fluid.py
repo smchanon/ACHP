@@ -57,7 +57,7 @@ class Fluid():
 
     def getMeltingTemperature(self, pressure):
         return self.abstractState.getMeltingTemperature(pressure)
-    
+
     def getIsobaricExpansionCoefficient(self):
         return self.abstractState.getIsobaricExpansionCoefficient()
 
@@ -84,7 +84,7 @@ class Fluid():
 
         """
         return self.abstractState.calculateCriticalTemperature()
-    
+
     def calculateMassMolar(self):
         """
         Calculates the molar mass of the fluid in kg/mol.
@@ -128,7 +128,7 @@ class Fluid():
             case _:
                 raise NotImplementedError('This calculation has not yet been implemented')
         return pressure
-    
+
     def calculateSurfaceTension(self, properties: ThermoProps, variable1, variable2):
         """
         Calculates the surface tension of the fluid in N/m.
@@ -160,7 +160,7 @@ class Fluid():
             case _:
                 raise NotImplementedError('This calculation has not yet been implemented')
         return surfaceTension
-    
+
 
     def calculateTemperature(self, properties: ThermoProps, variable1, variable2):
         """
@@ -445,7 +445,7 @@ class Fluid():
             case _:
                 raise NotImplementedError('This calculation has not yet been implemented')
         return conductivity
-    
+
 class FluidApparatusProps():
     def __init__(self, pressureIn: float=0.0, temperatureIn: float=0.0,
              enthalpyIn: float=0.0, fractionIn: float=0.0):
@@ -453,22 +453,25 @@ class FluidApparatusProps():
         self.temperatureIn = temperatureIn
         self.enthalpyIn = enthalpyIn
         self.fractionIn = fractionIn
-        
+
         self.pressureOut: float
         self.temperatureOut: float
         self.enthalpyOut: float
         self.fractionOut: float
-        
+
     def get(self, fluidProperty):
         if not hasattr(self, fluidProperty):
             setattr(self, fluidProperty, 0.0)
         return getattr(self, fluidProperty)
-    
+
+    def set(self, fluidProperty, value):
+        setattr(self, fluidProperty, value)
+
     def getDict(self, fluidProperty):
         if not hasattr(self, fluidProperty):
             setattr(self, fluidProperty, {})
         return getattr(self, fluidProperty)
-    
+
     def addToProperty(self, fluidProperty, key, value):
         if hasattr(self, fluidProperty):
             getattr(self,fluidProperty)[key] = value

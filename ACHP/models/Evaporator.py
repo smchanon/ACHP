@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d
 from ACHP.models.FinnedTube import FinnedTube
 from ACHP.models.Fluid import Fluid, ThermoProps, FluidApparatusProps
 from ACHP.DryWetSegment import DWSVals, DryWetSegment
-from ACHP.models.Correlations import f_h_1phase_Tube, ShahEvaporation_Average, lmPressureGradientAvg,\
+from ACHP.calculations.Correlations import f_h_1phase_Tube, ShahEvaporation_Average, lmPressureGradientAvg,\
     calculateAccelerationalPressureDrop, twoPhaseDensity, KandlikarEvaporation_average
 
 class Evaporator():

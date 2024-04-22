@@ -10,10 +10,10 @@ import logging
 from scipy.optimize import brentq
 import numpy as np
 from ACHP.models.Fluid import Fluid, ThermoProps, FluidApparatusProps
-from ACHP.models.Correlations import getTempDensityPhaseFromPandH, getPhaseFromPandH,\
+from ACHP.calculations.Correlations import getTempFromPandH, getDensityFromPandH, getPhaseFromPandH,\
     Cooper_PoolBoiling, twoPhaseDensity, lmPressureGradientAvg, calculateAccelerationalPressureDrop,\
     LongoCondensation, PettersonSupercritical, f_h_1phase_Tube, f_h_1phase_Annulus,\
-    KandlikarEvaporation_average
+    kandlikarEvaporationAvg, FluidMechanics
 
 class HEXType(StrEnum):
     """
@@ -50,12 +50,13 @@ class HeatExchanger():
 
     Based on inlet states can figure out what states are possible.
     """
+
     def __init__(self, fluidHot: Fluid, fluidCold: Fluid, massFlowHot: float, massFlowCold: float,
                  pressureInHot: float, pressureInCold: float, enthalpyInHot: float, enthalpyInCold: float,
                  conductivity: float, effectiveLength: float, surfaceRoughness: float=1.0,
                  htpColdTuning: float=1.0, htpHotTuning: float=1.0, hrHotTuning: float=1.0,
                  dpHotTuning: float=1.0, dpColdTuning: float=1.0):
-        self.type = self.type or HEXType.DEFAULT
+        self.type = self.type if hasattr(self, 'type') else HEXType.DEFAULT
         self.logger = logging.getLogger(str(self.type))
         logging.LoggerAdapter(self.logger, {"methodname": "%(funcName)s"})
 
@@ -102,7 +103,7 @@ class HeatExchanger():
         # calculated outlet properties
         self.qMax: float
         self.heatTransferred: float
-        self.qFlux: float
+        self.heatFlux: float
 
         #aggregates for temperatures and phases
         self.thermalFraction: list
@@ -112,6 +113,23 @@ class HeatExchanger():
         self.cellList = []
 
     def logLocalVars(self, funcName, localDict):
+        """
+        Logs local variables in methods that call this. Should be moved to a log
+        class
+
+        Parameters
+        ----------
+        funcName : string
+            name of method/function whose variables are being logged.
+        localDict : dict
+            dict of local variables from method/function.
+
+        Returns
+        -------
+        None.
+
+        """
+        #TODO: move to logging file
         del localDict["self"]
         for localKey, localVal in localDict.items():
             if isinstance(localVal, (str, dict, list)):
@@ -133,17 +151,17 @@ class HeatExchanger():
         outputList = [
             ('Effective Length','m',self.effectiveLength),
             ('Wetted area','m^2',self.areaWettedHot),
-            ('Outlet Superheat','K',self.fluidProps["Cold"].tempIn - self.fluidProps["Cold"].tempDew),
+            ('Outlet Superheat','K',self.fluidProps["Cold"].get('tempIn') - self.fluidProps["Cold"].get('tempDew')),
             ('Q Total','W',self.heatTransferred),
-            ('Charge Total Hot','kg',self.fluidProps["Hot"].charge),
-            ('Charge Total Cold','kg',self.fluidProps["Cold"].charge),
-            ('Pressure Drop Hot','Pa',self.fluidProps["Hot"].pressureDrop),
-            ('Pressure Drop Cold','Pa',self.fluidProps["Cold"].pressureDrop),]
+            ('Charge Total Hot','kg',self.fluidProps["Hot"].get('charge')),
+            ('Charge Total Cold','kg',self.fluidProps["Cold"].get('charge')),
+            ('Pressure Drop Hot','Pa',self.fluidProps["Hot"].get('pressureDrop')),
+            ('Pressure Drop Cold','Pa',self.fluidProps["Cold"].get('pressureDrop')),]
         for temp, phase in product(["Hot", "Cold"], ['Superheated', 'TwoPhase', 'Subcooled',
                                                      'Supercritical', 'Supercrit_liq']):
             outputList.append((f"Q {phase} {temp}", "W", self.heatTransferred[temp][phase]))
-            outputList.append((f"Inlet {temp} stream temp", "K", self.fluidProps[temp].tempIn))
-            outputList.append((f"Outlet {temp} stream temp", "K", self.fluidProps[temp].tempOut))
+            outputList.append((f"Inlet {temp} stream temp", "K", self.fluidProps[temp].get('tempIn')))
+            outputList.append((f"Outlet {temp} stream temp", "K", self.fluidProps[temp].get('tempOut')))
             outputList.append((f"Charge {phase} {temp}", "kg", self.charge[temp][phase]))
             outputList.append((f"{temp} Mean HTC {phase}", "W/m^2-K",
                                self.fluidProps[temp].getDict("heatTransferCoeffEffective")[phase]))
@@ -152,14 +170,36 @@ class HeatExchanger():
         return outputList
 
     def setUpCalculation(self, volumeChannels, areasFlow):
+        """
+        Calculates heat exchanger/fluid shared variables that will be needed for further
+        calculations.
+
+        Parameters
+        ----------
+        volumeChannels : dict
+            volumes of the hot and cold channels.
+        areasFlow : dict
+            areas perpendicular to flow of the hot and cold channels.
+
+        Returns
+        -------
+        None.
+
+        """
         for temp in ["Hot", "Cold"]:
             tempFluid = getattr(self, f"fluid{temp}")
             tempBubble, densitySatLiquid, tempDew, densitySatVapor, tempSat = self.calculateTempsAndDensities(
-                    tempFluid, self.fluidProps[temp].pressureIn)
-            tempIn, densityIn, phaseIn = getTempDensityPhaseFromPandH(tempFluid, self.fluidProps[temp].pressureIn,
-                                                      self.fluidProps[temp].enthalpyIn, tempBubble,
-                                                      tempDew, densitySatLiquid, densitySatVapor)
-            entropyIn = self.calculateEntropyOfFluid(tempFluid, self.fluidProps[temp].pressureIn,
+                    tempFluid, self.fluidProps[temp].get('pressureIn'))
+            self.fluidProps[temp].set('enthalpySatLiquid', self.fluid.calculateEnthalpy(ThermoProps.DT, densitySatLiquid, tempBubble))
+            self.fluidProps[temp].set('enthalpySatVapor', self.fluid.calculateEnthalpy(ThermoProps.DT, densitySatVapor, tempDew))
+            tempIn = getTempFromPandH(self.fluid, self.fluidProps[temp].get('pressureIn'), self.fluidProps[temp].get('enthalpyIn'), self.type)
+            densityIn = getDensityFromPandH(self.fluid, self.fluidProps[temp].get('pressureIn'), self.fluidProps[temp].get('enthalpyIn'), self.type)
+            phaseIn = getPhaseFromPandH(self.fluid, self.fluidProps[temp].get('pressureIn'), self.fluidProps[temp].get('enthalpyIn'), self.type)
+            # tempIn, densityIn, phaseIn = getTempDensityPhaseFromPandH(tempFluid,
+            #                                     self.fluidProps[temp].get('pressureIn'),
+            #                                     self.fluidProps[temp].get('enthalpyIn'), tempBubble,
+            #                                     tempDew, densitySatLiquid, densitySatVapor)
+            entropyIn = self.calculateEntropyOfFluid(tempFluid, self.fluidProps[temp].get('pressureIn'),
                                                      tempIn, densityIn)
             massFluxAverage = getattr(self, f"massFlow{temp}")/areasFlow[temp]
             self.logLocalVars(self.setUpCalculation.__name__, locals())
@@ -180,19 +220,19 @@ class HeatExchanger():
     def determineHTBounds(self):
         # See if each phase could change phase if it were to reach the
         # inlet temperature of the opposite phase
-        assert self.fluidProps["Hot"].tempIn > self.fluidProps["Cold"].tempIn, \
+        assert self.fluidProps["Hot"].get('tempIn') > self.fluidProps["Cold"].get('tempIn'), \
             "Hot phase is colder than cold phase"
         # Find the maximum possible rate of heat transfer as the minimum of
         # taking each stream to the inlet temperature of the other stream
-        tempMeltHot = self.fluidHot.getMeltingTemperature(self.fluidProps["Hot"].pressureIn)
-        temperatureHot = tempMeltHot if self.fluidProps["Cold"].tempIn < tempMeltHot else self.fluidProps["Cold"].tempIn
+        tempMeltHot = self.fluidHot.getMeltingTemperature(self.fluidProps["Hot"].get('pressureIn'))
+        temperatureHot = tempMeltHot if self.fluidProps["Cold"].get('tempIn') < tempMeltHot else self.fluidProps["Cold"].get('tempIn')
 
-        enthalpyOutHot = self.fluidHot.calculateEnthalpy(ThermoProps.PT, self.fluidProps["Hot"].pressureIn,
-                                                         temperatureHot)
-        enthalpyOutCold = self.fluidCold.calculateEnthalpy(ThermoProps.PT, self.fluidProps["Cold"].pressureIn,
-                                                           self.fluidProps["Hot"].tempIn)
-        qMax = min([self.massFlowCold*(enthalpyOutCold - self.fluidProps["Cold"].enthalpyIn),
-                    self.massFlowHot*(self.fluidProps["Hot"].enthalpyIn - enthalpyOutHot)])
+        enthalpyOutHot = self.fluidHot.calculateEnthalpy(ThermoProps.PT,
+                            self.fluidProps["Hot"].get('pressureIn'), temperatureHot)
+        enthalpyOutCold = self.fluidCold.calculateEnthalpy(ThermoProps.PT,
+                            self.fluidProps["Cold"].get('pressureIn'), self.fluidProps["Hot"].get('tempIn'))
+        qMax = min([self.massFlowCold*(enthalpyOutCold - self.fluidProps["Cold"].get('enthalpyIn')),
+                    self.massFlowHot*(self.fluidProps["Hot"].get('enthalpyIn') - enthalpyOutHot)])
         if qMax < 0:
             raise ValueError('qMax in PHE must be > 0')
         # Now we need to check for internal pinch points where the temperature
@@ -206,18 +246,48 @@ class HeatExchanger():
         temperatureListHot = np.zeros_like(enthalpyListHot)
         if len(enthalpyListHot) != len(enthalpyListCold):
             raise ValueError('Length of enthalpy lists for both fluids must be the same')
-        #Make the lists of temperatures of each fluid at each cell boundary
         for index, (enthalpyHot, enthalpyCold) in enumerate(zip(enthalpyListHot, enthalpyListCold)):
-            temperatureListCold[index] = getTempDensityPhaseFromPandH(self.fluidCold, self.fluidProps["Cold"].pressureIn,
-                            enthalpyCold, self.fluidProps["Cold"].tempBubble,
-                            self.fluidProps["Cold"].tempDew, self.fluidProps["Cold"].densitySatLiquid,
-                            self.fluidProps["Cold"].densitySatVapor)[0]
-            temperatureListHot[index] = getTempDensityPhaseFromPandH(self.fluidHot, self.fluidProps["Hot"].pressureIn,
-                            enthalpyHot, self.fluidProps["Hot"].tempBubble,
-                            self.fluidProps["Hot"].tempDew, self.fluidProps["Hot"].densitySatLiquid,
-                            self.fluidProps["Hot"].densitySatVapor)[0]
+            temperatureListCold[index] = getTempFromPandH(self.fluidCold, self.fluidProps["Cold"].get('pressureIn'), enthalpyCold, self.type)
+            temperatureListHot[index] = getTempFromPandH(self.fluidHot, self.fluidProps["Hot"].get('pressureIn'), enthalpyHot, self.type)
+            # temperatureListCold[index] = getTempDensityPhaseFromPandH(self.fluidCold,
+            #             self.fluidProps["Cold"].get('pressureIn'),
+            #             enthalpyCold,
+            #             self.fluidProps["Cold"].get('tempBubble'),
+            #             self.fluidProps["Cold"].get('tempDew'),
+            #             self.fluidProps["Cold"].get('densitySatLiquid'),
+            #             self.fluidProps["Cold"].get('densitySatVapor'))[0]
+            # temperatureListHot[index] = getTempDensityPhaseFromPandH(self.fluidHot,
+            #             self.fluidProps["Hot"].get('pressureIn'),
+            #             enthalpyHot,
+            #             self.fluidProps["Hot"].get('tempBubble'),
+            #             self.fluidProps["Hot"].get('tempDew'),
+            #             self.fluidProps["Hot"].get('densitySatLiquid'),
+            #             self.fluidProps["Hot"].get('densitySatVapor'))[0]
         #TODO: could do with more generality if both streams can change phase
-        # Check if any internal points are pinched
+        qMaxPinch = self.checkPinchPoints(temperatureListHot, temperatureListCold, enthalpyListHot)
+        qMax = qMaxPinch or qMax
+        self.logLocalVars(self.determineHTBounds.__name__, locals())
+        return qMax
+
+    def checkPinchPoints(self, temperatureListHot, temperatureListCold, enthalpyListHot):
+        """
+        Checks for pinch points
+
+        Parameters
+        ----------
+        temperatureListHot : list
+            list of temperatures on the hot side.
+        temperatureListCold : list
+            list of temperatures on the cold side.
+        enthalpyListHot : list
+            list of enthalpies on the hot side.
+
+        Returns
+        -------
+        float or None
+            if there is a pinch point, returns the qMax at that point. If there is none, returns None
+
+        """
         if (temperatureListCold[1:-1] > temperatureListHot[1:-1]).any():
             # Loop over the internal cell boundaries
             for i in range(1,len(temperatureListCold)-1):
@@ -225,13 +295,11 @@ class HeatExchanger():
                 if temperatureListCold[i] - 1e-9 > temperatureListHot[i]:
                     # Find new enthalpy of cold stream at the hot stream cell boundary
                     hPinch = self.fluidCold.calculateEnthalpy(ThermoProps.PT,
-                                self.fluidProps["Cold"].pressureIn, temperatureListHot[i])
+                                self.fluidProps["Cold"].get('pressureIn'), temperatureListHot[i])
                     # Find heat transfer of hot stream in right-most cell
                     qExtra = self.massFlowHot*(enthalpyListHot[i+1] - enthalpyListHot[i])
-                    qMax = self.massFlowCold*(hPinch - self.fluidProps["Cold"].enthalpyIn) + qExtra
-
-        self.logLocalVars(self.determineHTBounds.__name__, locals())
-        return qMax
+                    return self.massFlowCold*(hPinch - self.fluidProps["Cold"].get('enthalpyIn')) + qExtra
+        return None
 
     def givenQ(self, heat):
         """
@@ -280,27 +348,27 @@ class HeatExchanger():
         """
         #Start the enthalpy lists with inlet and outlet enthalpies
         #Ordered from lowest to highest enthalpies for both streams
-        enthalpyLists = {"Hot": [self.fluidProps["Hot"].enthalpyIn - qGiven/self.massFlowHot,
-                                 self.fluidProps["Hot"].enthalpyIn],
-                         "Cold": [self.fluidProps["Cold"].enthalpyIn,
-                                  self.fluidProps["Cold"].enthalpyIn + qGiven/self.massFlowCold]}
+        enthalpyLists = {"Hot": [self.fluidProps["Hot"].get('enthalpyIn') - qGiven/self.massFlowHot,
+                                 self.fluidProps["Hot"].get('enthalpyIn')],
+                         "Cold": [self.fluidProps["Cold"].get('enthalpyIn'),
+                                  self.fluidProps["Cold"].get('enthalpyIn') + qGiven/self.massFlowCold]}
         #Save the value of qGiven and outlet enthalpies
         self.heatTransferred = qGiven
-        self.fluidProps["Hot"].enthalpyOut = enthalpyLists["Hot"][0]
-        self.fluidProps["Cold"].enthalpyOut = enthalpyLists["Cold"][1]
+        self.fluidProps["Hot"].set('enthalpyOut', enthalpyLists["Hot"][0])
+        self.fluidProps["Cold"].set('enthalpyOut', enthalpyLists["Cold"][1])
         eps = 1e-3
         enthalpySatLiquid = {}
         enthalpySatVapor = {}
         for temp in ["Hot", "Cold"]:
             if 'incomp' in getattr(self, f"fluid{temp}").backEnd.lower() \
-                or self.fluidProps[temp].pressureIn > getattr(self, f"fluid{temp}").pressureCritical:
+                or self.fluidProps[temp].get('pressureIn') > getattr(self, f"fluid{temp}").pressureCritical:
                 enthalpySatLiquid[temp] = 1e9
                 enthalpySatVapor[temp] = 1e9
             else:
                 enthalpySatLiquid[temp] = getattr(self, f"fluid{temp}").calculateEnthalpy(ThermoProps.DT,
-                        self.fluidProps[temp].densitySatLiquid, self.fluidProps[temp].tempBubble)
+                        self.fluidProps[temp].get('densitySatLiquid'), self.fluidProps[temp].get('tempBubble'))
                 enthalpySatVapor[temp] = getattr(self, f"fluid{temp}").calculateEnthalpy(ThermoProps.DT,
-                        self.fluidProps[temp].densitySatVapor, self.fluidProps[temp].tempDew)
+                        self.fluidProps[temp].get('densitySatVapor'), self.fluidProps[temp].get('tempDew'))
             self.logLocalVars(self.buildEnthalpyLists.__name__, locals())
             # Check whether the enthalpy boundaries are within the bounds set by
             # the imposed amount of heat transfer
@@ -368,30 +436,60 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         assert enthalpiesIn["Hot"] > enthalpiesOut["Hot"], "Hot stream is heating!"
         assert enthalpiesIn["Cold"] < enthalpiesOut["Cold"], "Cold stream is cooling!"
         #Use midpoint enthalpies to figure out the phase in the cell
-        phaseHot = getPhaseFromPandH(self.fluidHot, self.fluidProps["Hot"].pressureIn,
-                           (enthalpiesIn["Hot"] + enthalpiesOut["Hot"])/2,
-                           self.fluidProps["Hot"].tempBubble, self.fluidProps["Hot"].tempDew,
-                           self.fluidProps["Hot"].densitySatLiquid, self.fluidProps["Hot"].densitySatVapor)
-        phaseCold = getPhaseFromPandH(self.fluidCold, self.fluidProps["Cold"].pressureIn,
-                           (enthalpiesIn["Cold"] + enthalpiesOut["Cold"])/2,
-                           self.fluidProps["Cold"].tempBubble, self.fluidProps["Cold"].tempDew,
-                           self.fluidProps["Cold"].densitySatLiquid, self.fluidProps["Cold"].densitySatVapor)
-        tempsIn = {"Hot": getTempDensityPhaseFromPandH(self.fluidHot, self.fluidProps["Hot"].pressureIn,
-                                enthalpiesIn["Hot"], self.fluidProps["Hot"].tempBubble,
-                                self.fluidProps["Hot"].tempDew, self.fluidProps["Hot"].densitySatLiquid,
-                                self.fluidProps["Hot"].densitySatVapor)[0],
-                   "Cold": getTempDensityPhaseFromPandH(self.fluidCold, self.fluidProps["Cold"].pressureIn,
-                                enthalpiesIn["Cold"], self.fluidProps["Cold"].tempBubble,
-                                self.fluidProps["Cold"].tempDew, self.fluidProps["Cold"].densitySatLiquid,
-                                self.fluidProps["Cold"].densitySatVapor)[0]}
-        tempsOut = {"Hot": getTempDensityPhaseFromPandH(self.fluidHot, self.fluidProps["Hot"].pressureIn,
-                                enthalpiesOut["Hot"], self.fluidProps["Hot"].tempBubble,
-                                self.fluidProps["Hot"].tempDew, self.fluidProps["Hot"].densitySatLiquid,
-                                self.fluidProps["Hot"].densitySatVapor)[0],
-                    "Cold": getTempDensityPhaseFromPandH(self.fluidCold, self.fluidProps["Cold"].pressureIn,
-                                enthalpiesOut["Cold"], self.fluidProps["Cold"].tempBubble,
-                                self.fluidProps["Cold"].tempDew, self.fluidProps["Cold"].densitySatLiquid,
-                                self.fluidProps["Cold"].densitySatVapor)[0]}
+        phaseHot = getPhaseFromPandH(self.fluidHot, self.fluidProps["Hot"].get('pressureIn'),
+                                     (enthalpiesIn["Hot"] + enthalpiesOut["Hot"])/2, self.type)
+        phaseCold = getPhaseFromPandH(self.fluidCold, self.fluidProps["Cold"].get('pressureIn'),
+                                     (enthalpiesIn["Cold"] + enthalpiesOut["Cold"])/2, self.type)
+        tempsIn = {"Hot": getTempFromPandH(self.fluidHot, self.fluidProps["Hot"].get('pressureIn'),
+                                enthalpiesIn["Hot"], self.type),
+                   "Cold": getTempFromPandH(self.fluidCold, self.fluidProps["Cold"].get('pressureIn'),
+                                enthalpiesIn["Cold"], self.type)}
+        tempsOut = {"Hot": getTempFromPandH(self.fluidHot, self.fluidProps["Hot"].get('pressureIn'),
+                                enthalpiesOut["Hot"], self.type),
+                    "Cold": getTempFromPandH(self.fluidCold, self.fluidProps["Cold"].get('pressureIn'),
+                                enthalpiesOut["Cold"], self.type)}
+        # phaseHot = getPhaseFromPandH(self.fluidHot,
+        #                         self.fluidProps["Hot"].get('pressureIn'),
+        #                         (enthalpiesIn["Hot"] + enthalpiesOut["Hot"])/2,
+        #                         self.fluidProps["Hot"].get('tempBubble'),
+        #                         self.fluidProps["Hot"].get('tempDew'),
+        #                         self.fluidProps["Hot"].get('densitySatLiquid'),
+        # #                         self.fluidProps["Hot"].get('densitySatVapor'))
+        # phaseCold = getPhaseFromPandH(self.fluidCold,
+        #                         self.fluidProps["Cold"].get('pressureIn'),
+        #                         (enthalpiesIn["Cold"] + enthalpiesOut["Cold"])/2,
+        #                         self.fluidProps["Cold"].get('tempBubble'),
+        #                         self.fluidProps["Cold"].get('tempDew'),
+        #                         self.fluidProps["Cold"].get('densitySatLiquid'),
+        #                         self.fluidProps["Cold"].get('densitySatVapor'))
+        # tempsIn = {"Hot": getTempDensityPhaseFromPandH(self.fluidHot,
+        #                         self.fluidProps["Hot"].get('pressureIn'),
+        #                         enthalpiesIn["Hot"],
+        #                         self.fluidProps["Hot"].get('tempBubble'),
+        #                         self.fluidProps["Hot"].get('tempDew'),
+        #                         self.fluidProps["Hot"].get('densitySatLiquid'),
+        #                         self.fluidProps["Hot"].get('densitySatVapor'))[0],
+        #            "Cold": getTempDensityPhaseFromPandH(self.fluidCold,
+        #                         self.fluidProps["Cold"].get('pressureIn'),
+        #                         enthalpiesIn["Cold"],
+        #                         self.fluidProps["Cold"].get('tempBubble'),
+        #                         self.fluidProps["Cold"].get('tempDew'),
+        #                         self.fluidProps["Cold"].get('densitySatLiquid'),
+        #                         self.fluidProps["Cold"].get('densitySatVapor'))[0]}
+        # tempsOut = {"Hot": getTempDensityPhaseFromPandH(self.fluidHot,
+        #                         self.fluidProps["Hot"].get('pressureIn'),
+        #                         enthalpiesOut["Hot"],
+        #                         self.fluidProps["Hot"].get('tempBubble'),
+        #                         self.fluidProps["Hot"].get('tempDew'),
+        #                         self.fluidProps["Hot"].get('densitySatLiquid'),
+        #                         self.fluidProps["Hot"].get('densitySatVapor'))[0],
+        #             "Cold": getTempDensityPhaseFromPandH(self.fluidCold,
+        #                         self.fluidProps["Cold"].get('pressureIn'),
+        #                         enthalpiesOut["Cold"],
+        #                         self.fluidProps["Cold"].get('tempBubble'),
+        #                         self.fluidProps["Cold"].get('tempDew'),
+        #                         self.fluidProps["Cold"].get('densitySatLiquid'),
+        #                         self.fluidProps["Cold"].get('densitySatVapor'))[0]}
         inputs = {
             "heatTransferred": qBound,
             'tempMeanHot': (tempsIn["Hot"] + tempsOut["Hot"])/2,
@@ -407,13 +505,13 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
                 enthalpiesOut[temp])/1e-5
         for temp, phase in {"Hot": phaseHot, "Cold": phaseCold}.items():
             if phase=='TwoPhase':
-                tempDiff = self.fluidProps[temp].enthalpySatVapor - \
-                            self.fluidProps[temp].enthalpySatLiquid
+                tempDiff = self.fluidProps[temp].get('enthalpySatVapor') - \
+                            self.fluidProps[temp].get('enthalpySatLiquid')
                 inputs.update({
                     'fractionHigh': min((enthalpiesIn[temp] - \
-                            self.fluidProps[temp].enthalpySatLiquid)/tempDiff, 1),
+                            self.fluidProps[temp].get('enthalpySatLiquid'))/tempDiff, 1),
                     'fractionLow': max((enthalpiesOut[temp] - \
-                            self.fluidProps[temp].enthalpySatLiquid)/tempDiff, 0)
+                            self.fluidProps[temp].get('enthalpySatLiquid'))/tempDiff, 0)
                     })
         self.logLocalVars(self.determineHotAndColdPhases.__name__, locals())
         if all(x in ["Subcooled", "Superheated"] for x in [phaseHot, phaseCold]):
@@ -423,21 +521,20 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
             inputs['xOutC'] = inputs.pop('fractionLow')
             inputs['xInC'] = inputs.pop('fractionHigh')
             if phaseHot in ['Subcooled','Superheated']:
-                # Cold stream is evaporating, and hot stream is single-phase (SH or SC)
+                # Cold stream is evaporating, and hot stream is single-phase
                 return "_onePhaseHTwoPhaseCQimposed", inputs
             if phaseHot in ['Supercritical','Supercrit_liq']:
-                # Cold stream is evaporating, and hot stream is transcritical-phase (Supercrit or Supercrit_liq)
+                # Cold stream is evaporating, and hot stream is transcritical-phase
                 return "_transCritPhaseHTwoPhaseCQimposed", inputs
         if phaseCold in ['Subcooled','Superheated']:
             if phaseHot == 'TwoPhase':
                 inputs['xInH'] = inputs.pop('fractionHigh')
                 inputs['xOutH'] = inputs.pop('fractionLow')
-                # Hot stream is condensing, and cold stream is single-phase (SH or SC)
+                # Hot stream is condensing, and cold stream is single-phase
                 # TODO: bounding state can be saturated state if hot stream is condensing
                 return "_twoPhaseHOnePhaseCQimposed", inputs
             if phaseHot in ['Supercritical','Supercrit_liq']:
-                # Cold stream is single-phase (SH or SC), and hot stream is transcritical-phase
-                #(Supercrit or Supercrit_liq)
+                # Cold stream is single-phase, and hot stream is transcritical-phase
                 inputs.update({
                     'specificHeatCold':(enthalpiesIn["Cold"] - enthalpiesOut["Cold"])/\
                         (tempsIn["Cold"] - tempsOut["Cold"]),
@@ -482,11 +579,11 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         #w is required part of heat exchanger for this duty
         thermalFraction = conductanceRequired/conductanceTotal
         #Determine both charge components
-        densityHot = self.fluidHot.calculateDensity(ThermoProps.PT, self.fluidProps["Hot"].pressureIn,
-                                                    inputs['tempMeanHot'])
+        densityHot = self.fluidHot.calculateDensity(ThermoProps.PT,
+                                    self.fluidProps["Hot"].get('pressureIn'), inputs['tempMeanHot'])
         chargeHot = thermalFraction*self.volumeChannelHot*densityHot
-        densityCold = self.fluidCold.calculateDensity(ThermoProps.PT, self.fluidProps["Cold"].pressureIn,
-                                                      inputs['tempMeanCold'])
+        densityCold = self.fluidCold.calculateDensity(ThermoProps.PT,
+                                    self.fluidProps["Cold"].get('pressureIn'), inputs['tempMeanCold'])
         chargeCold = thermalFraction*self.volumeChannelCold*densityCold
         self.logLocalVars(self._onePhaseHOnePhaseCQimposed.__name__, locals())
         outputs = {**inputs, **{
@@ -529,11 +626,11 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
 
         """
         while abs(fractionChange) > 1e-6:
-            qFlux = inputs['heatTransferred']/(thermalFraction*self.areaWettedCold)
+            heatFlux = inputs['heatTransferred']/(thermalFraction*self.areaWettedCold)
             #Heat transfer coefficient from Cooper Pool Boiling with
             #correction for the two-phase zone of the cold side
             heatTransferCoeffTwoPhase = self.htpColdTuning*Cooper_PoolBoiling(self.fluidCold,
-                                            self.surfaceRoughness, qFlux, str(self.type))
+                                            self.surfaceRoughness, heatFlux, str(self.type))
             fractionUpdated = self.calculateFraction("Cold", inputs['heatTransferCoeffHot'],
                                                 heatTransferCoeffTwoPhase, inputs['specificHeatHot'],
                                                 inputs['tempInHot'], inputs['heatTransferred'])
@@ -541,22 +638,22 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
             thermalFraction = fractionUpdated
             self.logLocalVars(self._onePhaseHTwoPhaseCQimposed.__name__, locals())
         #Refrigerant charge
-        densityHot = self.fluidHot.calculateDensity(ThermoProps.PT, self.fluidProps["Hot"].pressureIn,
+        densityHot = self.fluidHot.calculateDensity(ThermoProps.PT, self.fluidProps["Hot"].get('pressureIn'),
                                                     inputs['tempMeanHot'])
         chargeHot = thermalFraction*self.volumeChannelHot*densityHot
         densityCold = twoPhaseDensity(self.fluidCold, inputs['xInC'], inputs['xOutC'],
-                        self.fluidProps["Cold"].tempDew, self.fluidProps["Cold"].tempBubble)
+                        self.fluidProps["Cold"].get('tempDew'), self.fluidProps["Cold"].get('tempBubble'))
         chargeCold = densityCold*thermalFraction*self.volumeChannelCold
         pressureDropFriction = lmPressureGradientAvg(inputs['xInC'], inputs['xOutC'], self.fluidCold,
                         self.massFlowCold/self.areaFlowCold, self.diameterHydraulicCold,
-                        self.fluidProps["Cold"].tempBubble, self.fluidProps["Cold"].tempDew,
-                        C=inputs['C'])*thermalFraction*self.effectiveLength
+                        self.fluidProps["Cold"].get('tempBubble'), self.fluidProps["Cold"].get('tempDew'),
+                        coeff=inputs['C'])*thermalFraction*self.effectiveLength
         #Accelerational pressure drop component
         pressureDropAcceleration = calculateAccelerationalPressureDrop(inputs['xInC'], inputs['xOutC'],
                         self.fluidCold, self.massFlowCold/self.areaFlowCold,
-                        self.fluidProps["Cold"].tempBubble,  self.fluidProps["Cold"].tempDew)*\
+                        self.fluidProps["Cold"].get('tempBubble'),  self.fluidProps["Cold"].get('tempDew'))*\
                         thermalFraction*self.effectiveLength
-        outputs = {**inputs, **{
+        outputs = {
             'thermalFraction': thermalFraction,
             'tempOutHot': inputs['tempInHot'] - inputs['heatTransferred']/\
                 (self.massFlowCold*inputs['specificHeatHot']),
@@ -566,9 +663,9 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
             'chargeHot': chargeHot,
             'pressureDropHot': -inputs['pressureDropHot'],
             'pressureDropCold': pressureDropFriction + pressureDropAcceleration,
-            'qFlux': qFlux,
+            'heatFlux': heatFlux,
             'heatTransferCoeffCold': heatTransferCoeffTwoPhase
-        }}
+        }
         self.logLocalVars(self._onePhaseHTwoPhaseCQimposed.__name__, locals())
         return outputs
 
@@ -578,32 +675,33 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         inputs: dictionary of parameters
         outputs: dictionary of parameters, but mainly thermalFraction, pressure drop
             and heat transfer coefficient
-        This function calculate the fraction of heat exchanger
+        This function calculates the fraction of heat exchanger
         that would be required for given thermal duty "thermalFraction" and pressure drop
         and heat transfer coefficient
         """
         heatTransferCoeffTwoPhase = LongoCondensation((inputs['xOutH'] + inputs['xInH'])/2,
                                         self.massFlowCold/self.areaFlowHot, self.diameterHydraulicHot,
-                                        self.fluidHot, self.fluidProps["Hot"].tempBubble,
-                                        self.fluidProps["Hot"].tempDew)*self.htpHotTuning
+                                        self.fluidHot, self.fluidProps["Hot"].get('tempBubble'),
+                                        self.fluidProps["Hot"].get('tempDew'))*self.htpHotTuning
         thermalFraction = self.calculateFraction("Hot", inputs['heatTranferCoeffCold'],
                                                 heatTransferCoeffTwoPhase, inputs['specificHeatCold'],
                                                 inputs['tempInCold'], inputs['heatTransferred'])
         #TODO: these can be refactored with onephase_twoPhase calculations
-        densityCold = self.fluidCold.calculateDensity(ThermoProps.PT, self.fluidProps["Cold"].pressureIn,
-                                                      inputs['tempMeanCold'])
+        densityCold = self.fluidCold.calculateDensity(ThermoProps.PT,
+                                        self.fluidProps["Cold"].get('pressureIn'), inputs['tempMeanCold'])
         chargeCold = thermalFraction*self.volumeChannelCold*densityCold
         densityHot = twoPhaseDensity(self.fluidHot,inputs['xOutH'],inputs['xInH'],
-                        self.fluidProps["Hot"].tempDew, self.fluidProps["Hot"].tempBubble, slipModel='Zivi')
+                        self.fluidProps["Hot"].get('tempDew'), self.fluidProps["Hot"].get('tempBubble'),
+                        slipModel='Zivi')
         chargeHot = densityHot*thermalFraction*self.volumeChannelHot
         pressureDropFriction = lmPressureGradientAvg(inputs['xOutH'], inputs['xInH'], self.fluidHot,
                         self.massFlowCold/self.areaFlowHot, self.diameterHydraulicHot,
-                        self.fluidProps["Hot"].tempBubble, self.fluidProps["Hot"].tempDew,
-                        C=inputs['C'])*thermalFraction*self.effectiveLength
+                        self.fluidProps["Hot"].get('tempBubble'), self.fluidProps["Hot"].get('tempDew'),
+                        coeff=inputs['C'])*thermalFraction*self.effectiveLength
         #Accelerational pressure drop component
         pressureDropAcceleration = -calculateAccelerationalPressureDrop(inputs['xOutH'], inputs['xInH'],
                             self.fluidHot, self.massFlowCold/self.areaFlowHot,
-                            self.fluidProps["Hot"].tempBubble, self.fluidProps["Hot"].tempDew,
+                            self.fluidProps["Hot"].get('tempBubble'), self.fluidProps["Hot"].get('tempDew'),
                             slipModel='Zivi')*thermalFraction*self.effectiveLength
         outputs = {**inputs, **{
             'thermalFraction': thermalFraction,
@@ -661,87 +759,6 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         self.logLocalVars(self.calculateFraction.__name__, locals())
         return conductanceRequired/conductanceTotal
 
-    def _transCritPhaseHTwoPhaseCQimposed(self,inputs):
-        """
-        The hot stream is Transcritical phase (supercritical or supercrit_liq), and the cold stream
-        is evaporating (two phase)
-        inputs: dictionary of parameters
-        outputs: dictionary of parameters,
-        but mainly thermalFraction, pressure drop and heat transfer coefficient
-        This function calculate the fraction of heat exchanger
-        that would be required for given thermal duty "thermalFraction" and DP and h
-        """
-        #Reduced pressure for Cooper Correlation
-        fractionChange = 999
-        thermalFraction = 1
-        while abs(fractionChange) > 1e-6:
-            qFlux = inputs['heatTransferred']/(thermalFraction*self.areaWettedCold)
-            #Heat transfer coefficient from Cooper Pool Boiling with
-            #correction for the two-phase zone of the cold side
-            heatTransferCoeffTwoPhase = self.calculateHeatTransferCoeff('Cold', qFlux)*self.htpColdTuning
-            #cold-side heat resistance
-            resistanceCold = 1/(heatTransferCoeffTwoPhase*self.areaWettedCold)
-            #wall temperature calculated from energy balance on the cold-side
-            tempWall = (self.thermalResistanceWall + resistanceCold)*inputs['heatTransferred'] + \
-                self.fluidProps["Cold"].tempSat
-            #Calculate HTC for the hot Transcritical-phase fluid
-            #HTC and friction calculated using Pettersson (2000) correlations
-            enthalpyHot, frictionHot, specificHeatHot, densityHot = PettersonSupercritical(
-                inputs['tempMeanHot'], tempWall, self.fluidHot, self.fluidProps["Hot"].massFluxAverage,
-                self.diameterHydraulicHot, self.diameterHydraulicHot/self.effectiveLength,
-                self.fluidProps["Hot"].pressureIn, qFlux)
-            enthalpyHot = self.hrHotTuning*enthalpyHot #correct HTC for hot-side
-            #Evaluate UA [W/K]
-            conductanceTotal = 1/(1/(enthalpyHot*self.areaWettedHot) + \
-                                1/(heatTransferCoeffTwoPhase*self.areaWettedCold)+self.thermalResistanceWall)
-            #cp of cold-side (two-phase) is very large compared to hot-side (trans-phase).
-            #Therefore, capacitanceMin is on hot-side
-            capacitanceMin = specificHeatHot*self.massFlowCold
-            #Effectiveness [-]
-            qMax = capacitanceMin*(inputs['tempInHot'] - self.fluidProps["Cold"].tempSat)
-            epsilon = inputs['heatTransferred']/qMax
-            if epsilon>=1.0:
-                epsilon=1.0-1e-12
-            #Get Ntu [-]
-            ntu=-np.log(1-epsilon)
-            #Required UA value
-            conductanceRequired=ntu*capacitanceMin
-            fractionChange=conductanceRequired/conductanceTotal-thermalFraction
-            thermalFraction=conductanceRequired/conductanceTotal
-        #Refrigerant charge
-        chargeHot = thermalFraction*self.volumeChannelHot*densityHot
-        densityCold = twoPhaseDensity(self.fluidCold,inputs['xInC'], inputs['xOutC'],
-                    self.fluidProps["Cold"].tempDew, self.fluidProps["Cold"].tempBubble, slipModel='Zivi')
-        chargeCold = densityCold*thermalFraction*self.volumeChannelCold
-
-        #Hot-side Pressure gradient using Darcy friction factor
-        volumeSpecificHot = 1.0/densityHot
-        pressureGradientHot = -frictionHot*volumeSpecificHot*self.fluidProps["Hot"].massFluxAverage**2/\
-                                    (2*self.diameterHydraulicHot)
-        pressureDropFrictionHot=pressureGradientHot*self.effectiveLength*thermalFraction
-
-        pressureDropFrictionCold = lmPressureGradientAvg(inputs['xInC'], inputs['xOutC'],
-                    self.fluidCold, self.massFlowCold/self.areaFlowCold,
-                    self.diameterHydraulicCold, self.fluidProps["Cold"].tempBubble,
-                    self.fluidProps["Cold"].tempDew,C=4.67)*thermalFraction*self.effectiveLength
-        #Accelerational pressure drop component
-        pressureDropAccelerationCold = calculateAccelerationalPressureDrop(inputs['xInC'], inputs['xOutC'],
-                    self.fluidCold, self.massFlowCold/self.areaFlowCold,
-                    self.fluidProps["Cold"].tempBubble, self.fluidProps["Cold"].tempDew, slipModel='Zivi')*\
-                    thermalFraction*self.effectiveLength
-        outputs = {**inputs, **{
-            'thermalFraction': thermalFraction,
-            'tempOutHot': inputs['tempInHot']-inputs['heatTransferred']/(self.massFlowCold*specificHeatHot),
-            'chargeCold': chargeCold,
-            'chargeHot': chargeHot,
-            'pressureDropHot': pressureDropFrictionHot,
-            'pressureDropCold': pressureDropFrictionCold+pressureDropAccelerationCold,
-            'heatTransferCoeffCold': heatTransferCoeffTwoPhase,
-            'qFlux': qFlux,
-            'specificHeatHot': specificHeatHot,
-        }}
-        return outputs
-
     def _transCritPhaseHOnePhaseCQimposed(self, inputs):
         """
         The hot stream is Transcritical phase (supercritical or supercrit_liq), and the cold stream
@@ -754,30 +771,29 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         """
         #cold-side heat resistance
         conductanceCold = 1/(inputs['heatTransferCoeffCold']*self.areaWettedCold)
-        if inputs['heatTransferred'] > inputs['tempMeanHot']:
-            tempWall = (inputs['tempMeanHot'] + inputs['tempMeanCold'])/2
-        else:
-            #wall temperature calculate from energy balance on the cold-side
-            tempWall = (self.thermalResistanceWall + conductanceCold)*inputs['heatTransferred'] + \
-                inputs['tempMeanCold'] #This is just an initial wall temperature
+        # if inputs['heatTransferred'] > inputs['tempMeanHot']:
+        #     tempWall = (inputs['tempMeanHot'] + inputs['tempMeanCold'])/2
+        # else:
+            # #wall temperature calculate from energy balance on the cold-side
+            # tempWall = (self.thermalResistanceWall + conductanceCold)*inputs['heatTransferred'] + \
+            #     inputs['tempMeanCold'] #This is just an initial wall temperature
+        tempWall = (self.thermalResistanceWall + conductanceCold)*inputs['heatTransferred'] + \
+             inputs['tempMeanCold'] #This is just an initial wall temperature
         fractionChange = 999
         thermalFraction = 1
         while abs(fractionChange) > 1e-6:
             #heat flux
-            qFlux = inputs['heatTransferred']/(thermalFraction*self.areaWettedHot)
-            #Calculate HTC for the hot Transcritical-phase fluid
-            #HTC and friction calculated using Pettersson (2000) correlations
+            heatFlux = inputs['heatTransferred']/(thermalFraction*self.areaWettedHot)
             heatTransferCoeffHot, frictionHot, specificHeatHot, densityHot = PettersonSupercritical(
                                 inputs['tempMeanHot'], tempWall, self.fluidHot,
-                                self.fluidProps["Hot"].massFluxAverage, self.diameterHydraulicHot,
+                                self.fluidProps["Hot"].get('massFluxAverage'), self.diameterHydraulicHot,
                                 self.diameterHydraulicHot/self.effectiveLength,
-                                self.fluidProps["Hot"].pressureIn, qFlux)
+                                self.fluidProps["Hot"].get('pressureIn'), heatFlux)
             heatTransferCoeffHot *= self.hrHotTuning
             #Update wall temperature for the next iteration
             conductanceHot = 1/(heatTransferCoeffHot*self.areaWettedHot) #hot-side heat resistance
-            tempOutHot = inputs['tempInHot'] - inputs['heatTransferred']/(self.massFlowCold*specificHeatHot)
-            tempWall = tempOutHot - conductanceHot*inputs['heatTransferred']
-            conductanceTotal = 1/(conductanceHot + conductanceCold + self.thermalResistanceWall)
+            tempWall = tempWall + conductanceHot*inputs['heatTransferred']
+            conductanceTotal = 1/(conductanceHot + conductanceCold + (self.thickness or 1)/self.thermalResistanceWall)
             #Get Ntu [-]
             capacitance = [inputs['specificHeatCold']*self.massFlowCold,specificHeatHot*self.massFlowCold]
             capacitanceMin = min(capacitance)
@@ -794,12 +810,12 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
             self.logLocalVars(self._transCritPhaseHOnePhaseCQimposed.__name__, locals())
         #Determine both charge components
         chargeHot = thermalFraction*self.volumeChannelHot*densityHot
-        densityCold = self.fluidCold.calculateDensity(ThermoProps.PT, self.fluidProps["Cold"].pressureIn,
-                                                      inputs['tempMeanCold'])
+        densityCold = self.fluidCold.calculateDensity(ThermoProps.PT,
+                                self.fluidProps["Cold"].get('pressureIn'), inputs['tempMeanCold'])
         chargeCold = thermalFraction*self.volumeChannelCold*densityCold
         #Hot-side Pressure gradient using Darcy friction factor
         volumeSpecificHot = 1.0/densityHot
-        pressureGradientHot = -frictionHot*volumeSpecificHot*self.fluidProps["Hot"].massFluxAverage**2/\
+        pressureGradientHot = -frictionHot*volumeSpecificHot*self.fluidProps["Hot"].get('massFluxAverage')**2/\
             (2*self.diameterHydraulicHot)
         pressureDropFrictionHot = pressureGradientHot*self.effectiveLength*thermalFraction
         outputs = {**inputs, **{
@@ -813,13 +829,96 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
             'pressureDropHot': pressureDropFrictionHot,
             'pressureDropCold': -inputs['pressureDropCold'],
             'heatTransferCoeffHot': heatTransferCoeffHot,
-            'qFlux':qFlux,
+            'heatFlux':heatFlux,
             'specificHeatHot':specificHeatHot,
 
         }}
         return outputs
 
-    def calculateHeatTransferCoeff(self, temp, qFlux, xIn=None, xOut=None, massFlux=None):
+    def _transCritPhaseHTwoPhaseCQimposed(self,inputs):
+        """
+        The hot stream is Transcritical phase (supercritical or supercrit_liq), and the cold stream
+        is evaporating (two phase)
+        inputs: dictionary of parameters
+        outputs: dictionary of parameters,
+        but mainly thermalFraction, pressure drop and heat transfer coefficient
+        This function calculate the fraction of heat exchanger
+        that would be required for given thermal duty "thermalFraction" and DP and h
+        """
+        #Reduced pressure for Cooper Correlation
+        fractionChange = 999
+        thermalFraction = 1
+        while abs(fractionChange) > 1e-6:
+            heatFlux = inputs['heatTransferred']/(thermalFraction*self.areaWettedCold)
+            #Heat transfer coefficient from Cooper Pool Boiling with
+            #correction for the two-phase zone of the cold side
+            #TODO: This will not work for coaxial
+            heatTransferCoeffTwoPhase = self.calculateHeatTransferCoeff('Cold', heatFlux)*self.htpColdTuning
+            #cold-side heat resistance
+            resistanceCold = 1/(heatTransferCoeffTwoPhase*self.areaWettedCold)
+            #wall temperature calculated from energy balance on the cold-side
+            tempWall = (self.thermalResistanceWall + resistanceCold)*inputs['heatTransferred'] + \
+                self.fluidProps["Cold"].get('tempSat')
+            #Calculate HTC for the hot Transcritical-phase fluid
+            #HTC and friction calculated using Pettersson (2000) correlations
+            enthalpyHot, frictionHot, specificHeatHot, densityHot = PettersonSupercritical(
+                inputs['tempMeanHot'], tempWall, self.fluidHot, self.fluidProps["Hot"].get('massFluxAverage'),
+                self.diameterHydraulicHot, self.diameterHydraulicHot/self.effectiveLength,
+                self.fluidProps["Hot"].get('pressureIn'), heatFlux)
+            enthalpyHot = self.hrHotTuning*enthalpyHot #correct HTC for hot-side
+            #Evaluate UA [W/K]
+            conductanceTotal = 1/(1/(enthalpyHot*self.areaWettedHot) + \
+                                1/(heatTransferCoeffTwoPhase*self.areaWettedCold)+self.thermalResistanceWall)
+            #cp of cold-side (two-phase) is very large compared to hot-side (trans-phase).
+            #Therefore, capacitanceMin is on hot-side
+            capacitanceMin = specificHeatHot*self.massFlowCold
+            #Effectiveness [-]
+            qMax = capacitanceMin*(inputs['tempInHot'] - self.fluidProps["Cold"].get('tempSat'))
+            epsilon = inputs['heatTransferred']/qMax
+            if epsilon>=1.0:
+                epsilon=1.0-1e-12
+            #Get Ntu [-]
+            ntu=-np.log(1-epsilon)
+            #Required UA value
+            conductanceRequired=ntu*capacitanceMin
+            fractionChange=conductanceRequired/conductanceTotal-thermalFraction
+            thermalFraction=conductanceRequired/conductanceTotal
+        #Refrigerant charge
+        chargeHot = thermalFraction*self.volumeChannelHot*densityHot
+        densityCold = twoPhaseDensity(self.fluidCold,inputs['xInC'], inputs['xOutC'],
+                    self.fluidProps["Cold"].get('tempDew'), self.fluidProps["Cold"].get('tempBubble'),
+                    slipModel='Zivi')
+        chargeCold = densityCold*thermalFraction*self.volumeChannelCold
+
+        #Hot-side Pressure gradient using Darcy friction factor
+        volumeSpecificHot = 1.0/densityHot
+        pressureGradientHot = -frictionHot*volumeSpecificHot*self.fluidProps["Hot"].get('massFluxAverage')**2/\
+                                    (2*self.diameterHydraulicHot)
+        pressureDropFrictionHot=pressureGradientHot*self.effectiveLength*thermalFraction
+
+        pressureDropFrictionCold = lmPressureGradientAvg(inputs['xInC'], inputs['xOutC'],
+                    self.fluidCold, self.massFlowCold/self.areaFlowCold,
+                    self.diameterHydraulicCold, self.fluidProps["Cold"].get('tempBubble'),
+                    self.fluidProps["Cold"].get('tempDew'), coeff=4.67)*thermalFraction*self.effectiveLength
+        #Accelerational pressure drop component
+        pressureDropAccelerationCold = calculateAccelerationalPressureDrop(inputs['xInC'], inputs['xOutC'],
+                    self.fluidCold, self.massFlowCold/self.areaFlowCold,
+                    self.fluidProps["Cold"].get('tempBubble'), self.fluidProps["Cold"].get('tempDew'),
+                    slipModel='Zivi')*thermalFraction*self.effectiveLength
+        outputs = {**inputs, **{
+            'thermalFraction': thermalFraction,
+            'tempOutHot': inputs['tempInHot']-inputs['heatTransferred']/(self.massFlowCold*specificHeatHot),
+            'chargeCold': chargeCold,
+            'chargeHot': chargeHot,
+            'pressureDropHot': pressureDropFrictionHot,
+            'pressureDropCold': pressureDropFrictionCold+pressureDropAccelerationCold,
+            'heatTransferCoeffCold': heatTransferCoeffTwoPhase,
+            'heatFlux': heatFlux,
+            'specificHeatHot': specificHeatHot,
+        }}
+        return outputs
+
+    def calculateHeatTransferCoeff(self, temp, heatFlux, xIn=None, xOut=None, massFlux=None):
         """
         Calculates the heat transfer coefficient of a fluid. Should be overridden by child classes
 
@@ -827,7 +926,7 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         ----------
         temp : str
             'Hot' or 'Cold', denotes the stream being acted upon.
-        qFlux : float
+        heatFlux : float
             heat transferred.
         xIn : float, optional
             vapor fraction input on the cold side. The default is None.
@@ -866,10 +965,10 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
                 for phaseProperty in phaseProperties:
                     setattr(self, f"{phaseProperty}[{temp}][{phase}]", sum(map(lambda x, t=temp,
                         p=phaseProperty: x[f"{p}{t}"] if f"{p}{t}" in x.keys() else x[f"{p}"], phaseFilter)))
-                self.fluidProps[temp].pressureDrop = sum(self.pressureDrop[temp].values())*\
-                                    getattr(self, f"dp{temp}Tuning")
+                self.fluidProps[temp].set('pressureDrop',sum(self.pressureDrop[temp].values())*\
+                                    getattr(self, f"dp{temp}Tuning"))
                 # self.charge[temp][phase] = sum(map(lambda x, t=temp: x[f'charge{t}'],phaseFilter))
-                self.fluidProps[temp].charge = sum(self.charge[temp].values())
+                self.fluidProps[temp].set('charge',sum(self.charge[temp].values()))
                 # self.heatTransferred[temp][phase] = sum(map(lambda x: x['heatTransferred'], phaseFilter))
                 thermalFraction = list(map(lambda x: x['thermalFraction'], phaseFilter))
                 heatTransferCoeff = list(map(lambda x, t=temp: x[f'heatTransferCoeff{t}'], phaseFilter))
@@ -881,11 +980,13 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
                     sum(np.array(thermalFraction)*np.array(heatTransferCoeff))/\
                     sum(thermalFraction)) if len(thermalFraction) > 0 else 0.0)
         for temp in ['Hot', 'Cold']:
-            self.fluidProps[temp].tempOut,self.fluidProps[temp].densityOut = getTempDensityPhaseFromPandH(
-                getattr(self, f"fluid{temp}"), self.fluidProps[temp].pressureIn,
-                self.fluidProps[temp].enthalpyOut, self.fluidProps[temp].tempBubble,
-                self.fluidProps[temp].tempDew,self.fluidProps[temp].densitySatLiquid,
-                self.fluidProps[temp].densitySatVapor)[0:2]
+            tempOut, densityOut = getTempDensityPhaseFromPandH(getattr(self, f"fluid{temp}"),
+                self.fluidProps[temp].get('pressureIn'), self.fluidProps[temp].get('enthalpyOut'),
+                self.fluidProps[temp].get('tempBubble'), self.fluidProps[temp].get('tempDew'),
+                self.fluidProps[temp].get('densitySatLiquid'),
+                self.fluidProps[temp].get('densitySatVapor'))[0:2]
+            self.fluidProps[temp].set('tempOut', tempOut)
+            self.fluidProps[temp].set('densityOut', densityOut)
         self.logger.debug("thermalFraction: %s", self.thermalFraction,
                           extra={"methodname": self.postProcess.__name__})
         self.logger.debug("pressureDrop: %s", self.pressureDrop,
@@ -893,7 +994,8 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         self.logger.debug("charge: %s", self.charge, extra={"methodname": self.postProcess.__name__})
         self.logger.debug("heat transfers: %s", self.heatTransferred,
                           extra={"methodname": self.postProcess.__name__})
-        self.qFlux = list(map(lambda x: x["qFlux"], filter(lambda x: x["phaseCold"] == 'TwoPhase', cellList)))
+        self.heatFlux = list(map(lambda x: x["heatFlux"], filter(lambda x: x["phaseCold"] == 'TwoPhase',
+                                                                 cellList)))
         for fluid in [self.fluidHot, self.fluidCold]:
             props = fluid.fluidApparatiProps[self.type]
             props.tempChangeSupercritical = 1e9
@@ -901,7 +1003,7 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
                 props.entropyOut = fluid.calculateEntropy(ThermoProps.PT, props.pressureIn, props.tempOut)
                 continue
             props.entropyOut = fluid.calculateEntropy(ThermoProps.DT, props.densityOut, props.tempOut)
-            #TODO: need to take pressurecritical out if it's not found
+            #TODO: need to take pressureCritical out if it's not found
             if props.pressureIn > fluid.pressureCritical:
                 props.tempChangeApproach = props.tempOut - props.tempIn #approach temperature
             else:
@@ -1025,8 +1127,36 @@ the cold channel is not equal to the length of the enthalpy list for the hot cha
         return qBound
 
 class BrazedPlateHEX(HeatExchanger):
-    """
+    r"""
     Brazed Plate Heat Exchanger
+
+             =============================
+            ||   __               __    ||
+            ||  /  \             /  \   ||
+            || |    |           |    |  ||  ===
+            ||  \__/             \__/   ||   |
+            ||                          ||   |
+            ||             | <-  B   -> ||   |
+            ||                          ||   |
+            ||                          ||   |
+            ||                          ||
+            ||                          ||
+            ||             |\           ||
+            ||             | \          ||   effectiveLength
+            ||             |  \         ||
+            ||             |   \        ||
+            ||             | A  \       ||
+            ||             |     \      ||   |
+            ||                          ||   |
+            ||   __               __    ||   |
+            ||  /  \             /  \   ||   |
+            || |    |           |    |  ||  ===
+            ||  \__/             \__/   ||
+            ||                          ||
+            =============================
+                 |----------------|
+                centerlineDistShort
+             A is inclinationAngle
     """
     def __init__(self, fluidHot, fluidCold, massFlowHot, massFlowCold, pressureInHot, pressureInCold,
                  enthalpyInHot, enthalpyInCold, conductivity, centerlineDistanceShort: float,
@@ -1065,11 +1195,15 @@ class BrazedPlateHEX(HeatExchanger):
         volumeChannels = {}
         areasFlow = {}
         for temp in ['Hot', 'Cold']:
-            areaWetted, diameterHydraulic, volumeChannel, areaFlow = self.singlePhaseGeomCorrelations(temp)
-            setattr(self, f"diameterHydraulic{temp}", diameterHydraulic)
-            setattr(self, f"areaWetted{temp}", areaWetted)
-            volumeChannels[temp] = volumeChannel
-            areasFlow[temp] = areaFlow
+            areaBetweenPorts = self._calculateAreaBetweenPorts()
+            volumeChannels[temp] = self.calculateChannelVolume(temp, areaBetweenPorts)
+            setattr(self, f"diameterHydraulic{temp}", self.calculateHydraulicDiameter(volumeChannels[temp],
+                                                                                      areaBetweenPorts))
+            setattr(self, f"areaWetted{temp}", self.calculateAreaWetted(areaBetweenPorts))
+            areasFlow[temp] = self.calculateAreaFlow(temp, areaBetweenPorts)
+            self.thermalResistanceWall = self.thickness/(self.conductivity*getattr(self, f"areaWetted{temp}"))
+        self.logger.debug("thermalResistanceWall: %g", self.thermalResistanceWall,
+                      extra={"methodname": self.calculate.__name__})
         self.setUpCalculation(volumeChannels, areasFlow)
         low, high = 0, self.qMax
         try:
@@ -1092,167 +1226,189 @@ class BrazedPlateHEX(HeatExchanger):
 
         """
         otherChannel = [ele for ele in ['Hot', 'Cold'] if ele != self.moreChannels][0]
-        setattr(self, f"numGaps{self.moreChannels}", (self.numPlates - 1)//2 + 1)
-        setattr(self, f"numGaps{otherChannel}", self.numPlates - 1 - \
-                getattr(self, f"numGaps{self.moreChannels}"))
+        setattr(self, f"numGaps{self.moreChannels}", np.ceil((self.numPlates - 1)/2))
+        setattr(self, f"numGaps{otherChannel}", np.floor((self.numPlates - 1)/2))
 
-    def singlePhaseGeomCorrelations(self, temp):
-        r"""
-        Based on the single-phase pressure drop and heat transfer correlations
-        in VDI Heat Atlas Chapter N6: Pressure Drop and Heat Transfer in Plate Heat
-        Exchangers by Holger Martin DOI: 10.1007/978-3-540-77877-6_66 Springer Verlag
-        outputs: areaPlane, volumeChannel, areaFlow, diameterHydraulic
-            =============================
-            ||   __               __    ||
-            ||  /  \             /  \   ||
-            || |    |           |    |  ||  ===
-            ||  \__/             \__/   ||   |
-            ||                          ||   |
-            ||             | <-  B   -> ||   |
-            ||                          ||   |
-            ||                          ||   |
-            ||                          ||
-            ||                          ||
-            ||             |\           ||
-            ||             | \          ||   effectiveLength
-            ||             |  \         ||
-            ||             |   \        ||
-            ||             | A  \       ||
-            ||             |     \      ||   |
-            ||                          ||   |
-            ||   __               __    ||   |
-            ||  /  \             /  \   ||   |
-            || |    |           |    |  ||  ===
-            ||  \__/             \__/   ||
-            ||                          ||
-            =============================
-                 |----------------|
-                centerlineDistShort
-             A is inclinationAngle
+    def _calculateAreaBetweenPorts(self):
+        """
+        Calculates the area between inlet and outlet ports
+
+        Returns
+        -------
+        float
+            area between ports.
+
+        """
+        return self.centerlineDistShort*self.effectiveLength
+
+    def _calculatePhi(self):
+        """
+        Calculates phi value.
+
+        Returns
+        -------
+        float
+            phi.
+
+        """
+        xValue = 2*np.pi*self.amplitude/self.wavelength
+        return 1/6*(1 + np.sqrt(1 + xValue**2) + 4*np.sqrt(1 + xValue**2/2))
+
+    def calculateAreaWetted(self, areaBetweenPorts):
+        """
+        Calculates the wetted surface area.
+
+        Parameters
+        ----------
+        areaBetweenPorts : float
+            area between inlet and outlet ports.
+
+        Returns
+        -------
+        float
+            wetted surface area.
+
+        """
+        if self.volumeChannelSingle is None:
+            return self._calculatePhi()*areaBetweenPorts*(self.numPlates - 2)
+        return 2*areaBetweenPorts*(self.numPlates - 2)
+
+    def calculateChannelVolume(self, temp, areaBetweenPorts):
+        """
+        Calculates the channel volume of the "Hot" or "Cold" side, designated by
+        the temp variable.
 
         Parameters
         ----------
         temp : string
-            hot or cold side.
+            "Hot" or "Cold" channel.
+        areaBetweenPorts : float
+            area between inlet and outlet ports.
 
         Returns
         -------
-        areaWetted : float
-            wetted area of "temp".
-        diameterHydraulic : float
-            hydraulic diameter.
+        float
+            volume of entire channel on the side described by temp.
+
+        """
+        if self.volumeChannelSingle is None:
+            return areaBetweenPorts*2*self.amplitude*getattr(self, f"numGaps{temp}")
+        return self.volumeChannelSingle*getattr(self, f"numGaps{temp}")
+
+    def calculateHydraulicDiameter(self, volumeChannel, areaBetweenPorts):
+        """
+        Calculates the hydraulic diameter of the channel.
+
+        Parameters
+        ----------
         volumeChannel : float
             volume of the channel.
-        areaFlow : float
-            area perpendicular to flow.
-        """
-        areaBetweenPorts = self.centerlineDistShort*self.effectiveLength
-        if self.volumeChannelSingle is None:
-            xValue = 2*np.pi*self.amplitude/self.wavelength
-            phi = 1/6*(1 + np.sqrt(1 + xValue**2) + 4*np.sqrt(1 + xValue**2/2))
-            areaWetted = phi*areaBetweenPorts*(self.numPlates - 2)
-            diameterHydraulic = 4*self.amplitude/phi
-            volumeChannel = areaBetweenPorts*2*self.amplitude*getattr(self, f"numGaps{temp}")
-            areaFlow = 2*self.amplitude*self.centerlineDistShort*getattr(self, f"numGaps{temp}")
-        else:
-            areaWetted = 2*areaBetweenPorts*(self.numPlates - 2)
-            volumeChannel = self.volumeChannelSingle*getattr(self, f"numGaps{temp}")
-            diameterHydraulic = 4*volumeChannel/areaBetweenPorts
-            # diameterHydraulic = 2*areaBetweenPorts/(self.centerlineDistShort + self.effectiveLength)
-            areaFlow = 2*areaBetweenPorts*getattr(self, f"numGaps{temp}")
-        self.thermalResistanceWall = self.thickness/(self.conductivity*areaWetted)
-        self.logger.debug("thermalResistanceWall: %g", self.thermalResistanceWall,
-                          extra={"methodname": self.singlePhaseGeomCorrelations.__name__})
-        self.logLocalVars(self.singlePhaseGeomCorrelations.__name__, locals())
-        return areaWetted, diameterHydraulic, volumeChannel, areaFlow
+        areaBetweenPorts : float
+            area between inlet and outlet ports.
 
-    def singlePhaseThermoCorrelations(self, fluid, temperature, pressure, massFlowGap, diameterHydraulic):
+        Returns
+        -------
+        float
+            hydraulic diameter.
+
         """
+        if self.volumeChannelSingle is None:
+            return 4*self.amplitude/self._calculatePhi()
+        return 4*volumeChannel/areaBetweenPorts
+
+    def calculateAreaFlow(self, temp, areaBetweenPorts):
+        """
+        Calculates the flow area
+
+        Parameters
+        ----------
+        temp : string
+            "Hot" or "Cold" channel.
+        areaBetweenPorts : float
+            area between inlet and outlet ports.
+
+        Returns
+        -------
+        float
+            area perpendicular to flow in given channel.
+
+        """
+        if self.volumeChannelSingle is None:
+            return 2*self.amplitude*self.centerlineDistShort*getattr(self, f"numGaps{temp}")
+        return 2*areaBetweenPorts*getattr(self, f"numGaps{temp}")
+
+
+
+    def singlePhaseThermoCorrelations(self, fluid, temperature, pressure, massFlow, diameterHydraulic):
+        """
+        Calculates the pressure drop and heat transfer correlations
         Based on the single-phase pressure drop and heat transfer correlations
         in VDI Heat Atlas Chapter N6: Pressure Drop and Heat Transfer in Plate Heat
         Exchangers by Holger Martin DOI: 10.1007/978-3-540-77877-6_66 Springer Verlag
         outputs:    heatTransferCoeff, pressureDrop, reynoldsNum, velocity,
                     conductivity, heatCapacity
         """
-        #calculate the thermodynamics and pressure drop
-        #Single phase Fluid properties
         self.logger.debug("pressure: %g, temperature: %g", pressure, temperature,
                           extra={"methodname": self.singlePhaseThermoCorrelations.__name__})
-        densityGap = fluid.calculateDensity(ThermoProps.PT, pressure, temperature)
-        viscosityGap = fluid.calculateViscosity(ThermoProps.PT, pressure, temperature)
-        heatCapacityGap = fluid.calculateHeatCapacity(ThermoProps.PT, pressure, temperature)
-        conductivityGap = fluid.calculateConductivity(ThermoProps.PT, pressure, temperature)
-        prandtlNumGap = heatCapacityGap*viscosityGap/conductivityGap
-        viscosityGapW = viscosityGap #TODO: allow for temperature dependence?
+        density = fluid.calculateDensity(ThermoProps.PT, pressure, temperature)
+        viscosity = fluid.calculateViscosity(ThermoProps.PT, pressure, temperature)
+        heatCapacity = fluid.calculateHeatCapacity(ThermoProps.PT, pressure, temperature)
+        conductivity = fluid.calculateConductivity(ThermoProps.PT, pressure, temperature)
+        viscosityW = viscosity #TODO: allow for temperature dependence?
         if not self.amplitude:
-            velocityGap = massFlowGap*self.effectiveLength/(densityGap*self.volumeChannelSingle)
+            velocity = massFlow*self.effectiveLength/(density*self.volumeChannelSingle)
         else:
-            velocityGap = massFlowGap/(densityGap*2*self.amplitude*self.centerlineDistShort)
-        reynoldsNumGap = densityGap*velocityGap*diameterHydraulic/viscosityGap
-        #Calculate the friction factor zeta
-        if reynoldsNumGap < 2000:
-            zeta0 = 64/reynoldsNumGap
-            zeta1zero = 597/reynoldsNumGap + 3.85
-        else:
-            zeta0 = (1.8*np.log(reynoldsNumGap) - 1.5)**(-2)
-            zeta1zero = 39/reynoldsNumGap**0.289
-        varA = 3.8
-        varB = 0.18
-        varC = 0.36
-        zeta1 = varA*zeta1zero
-        #RHS from Equation 18
-        rhs = np.cos(self.inclinationAngle)/np.sqrt(varB*np.tan(self.inclinationAngle) +\
-                        varC*np.sin(self.inclinationAngle) + zeta0/np.cos(self.inclinationAngle)) +\
-                        (1 - np.cos(self.inclinationAngle))/np.sqrt(zeta1)
-        zeta = 1/rhs**2
-        #Hagen number
-        hagenNum = zeta*reynoldsNumGap**2/2
+            velocity = massFlow/(2*density*self.amplitude*self.centerlineDistShort)
+        reynoldsNum = FluidMechanics.calculateReynoldsNumber(velocity, diameterHydraulic,
+                                                                viscosity, density)
+        hagenNum = FluidMechanics.calculateHagenNumber(reynoldsNum, self.inclinationAngle)
+        prandtlNum = FluidMechanics.calculatePrandtlNumber(heatCapacity, viscosity, conductivity)
         #Constants for nusseltNum correlation
         constCQ = 0.122
         constQ = 0.374 #q=0.39
         #Nusselt number [-]
-        nusseltNum = constCQ*prandtlNumGap**(1/3)*(viscosityGap/viscosityGapW)**(1/6)*\
+        nusseltNum = constCQ*prandtlNum**(1/3)*(viscosity/viscosityW)**(1/6)*\
             (2*hagenNum*np.sin(2*self.inclinationAngle))**(constQ)
         #Heat transfer coefficient [W/m^2-K]
-        heatTransferCoeff = nusseltNum*conductivityGap/diameterHydraulic
+        heatTransferCoeff = nusseltNum*conductivity/diameterHydraulic
         #Pressure drop
-        pressureDrop = hagenNum*viscosityGap**2*self.effectiveLength/(densityGap*diameterHydraulic**3)
+        pressureDrop = hagenNum*viscosity**2*self.effectiveLength/(density*diameterHydraulic**3)
         self.logLocalVars(self.singlePhaseThermoCorrelations.__name__, locals())
         outputs = {
-             'heatTransferCoeff': heatTransferCoeff,    #Heat transfer coeffcient [W/m^2-K]
-             'pressureDrop': pressureDrop,              #Pressure drop [Pa]
-             'reynoldsNum': reynoldsNumGap,             #Reynolds number
-             'velocity': velocityGap,                   #Velocity of fluid in channel [m/s]
-             'conductivity': conductivityGap,           #Thermal conductivity of fluid [W/m-K]
-             'heatCapacity': heatCapacityGap,           #Specific heat of fluid [J/kg-K]
+             'heatTransferCoeff': heatTransferCoeff,    #[W/m^2-K]
+             'pressureDrop': pressureDrop,              #[Pa]
+             'heatCapacity': heatCapacity,              #[J/kg-K]
         }
         return outputs
 
     def _onePhaseHOnePhaseCQimposed(self,inputs):
-        #Evaluate heat transfer coefficient for both fluids
-        outputsHot = self.htdp(self.fluidHot, inputs['tempMeanHot'], self.fluidProps["Hot"].pressureIn,
+        outputsHot = self.htdp(self.fluidHot, inputs['tempMeanHot'],
+                               self.fluidProps["Hot"].get('pressureIn'),
                                self.massFlowHot/self.numGapsHot)
-        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'], self.fluidProps["Cold"].pressureIn,
+        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'],
+                                self.fluidProps["Cold"].get('pressureIn'),
                                 self.massFlowCold/self.numGapsCold)
         inputs.update({"identifier": 'w[1-1]: ',
                        "heatTransferCoeffHot": outputsHot['heatTransferCoeff'],
                        "heatTransferCoeffCold": outputsCold['heatTransferCoeff'],
                        "pressureDropHot": outputsHot['pressureDrop'],
                        "pressureDropCold": outputsCold['pressureDrop']})
-        return super()._onePhaseHOnePhaseCQimposed(inputs)
+        return {**inputs, **super()._onePhaseHOnePhaseCQimposed(inputs)}
 
     def _onePhaseHTwoPhaseCQimposed(self,inputs):
-        outputsHot = self.htdp(self.fluidHot, inputs['tempMeanHot'],self.fluidProps["Hot"].pressureIn,
+        outputsHot = self.htdp(self.fluidHot, inputs['tempMeanHot'],
+                               self.fluidProps["Hot"].get('pressureIn'),
                                self.massFlowHot/self.numGapsHot)
         inputs.update({"identifier": 'w[3-2]: ',
                        "heatTransferCoeffHot": outputsHot['heatTransferCoeff'],
                        "pressureDropHot": outputsHot['pressureDrop'],
                        "C": self.claessonParamC
                        })
-        return super()._onePhaseHTwoPhaseCQimposed(inputs)
+        return {**inputs, **super()._onePhaseHTwoPhaseCQimposed(inputs)}
 
     def _twoPhaseHOnePhaseCQimposed(self, inputs):
-        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'], self.fluidProps["Cold"].pressureIn,
+        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'],
+                                self.fluidProps["Cold"].get('pressureIn'),
                                 self.massFlowCold/self.numGapsCold)
         inputs.update({"identifier": 'w[2-1]: ',
                        "heatTransferCoeffCold": outputsCold['heatTransferCoeff'],
@@ -1260,34 +1416,35 @@ class BrazedPlateHEX(HeatExchanger):
                        "pressureDropCold": outputsCold['pressureDrop'],
                        "C": self.claessonParamC
                        })
-        return super()._twoPhaseHOnePhaseCQimposed(inputs)
-
-    def _transCritPhaseHTwoPhaseCQimposed(self,inputs):
-        #TODO: needs to be reworked
-        inputs["identifier"] = 'w[3-1]: '
-        return super()._transCritPhaseHTwoPhaseCQimposed(inputs)
+        return {**inputs, **super()._twoPhaseHOnePhaseCQimposed(inputs)}
 
     def _transCritPhaseHOnePhaseCQimposed(self, inputs):
-        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'], self.fluidProps["Cold"].pressureIn,
+        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'],
+                                self.fluidProps["Cold"].get('pressureIn'),
                             self.massFlowCold/self.numGapsCold)
         inputs.update({"identifier": 'w[1-2]: ',
                        "heatTransferCoeffCold": outputsCold['heatTransferCoeff'],
                        "specificHeatCold": outputsCold['heatCapacity'],
                        "pressureDropCold": outputsCold['pressureDrop']
             })
-        return super()._transCritPhaseHOnePhaseCQimposed(inputs)
+        return {**inputs, **super()._transCritPhaseHOnePhaseCQimposed(inputs)}
 
-    def calculateHeatTransferCoeff(self, temp, qFlux, xIn=None, xOut=None, massFlux=None):
+    def _transCritPhaseHTwoPhaseCQimposed(self,inputs):
+        #TODO: needs to be reworked
+        inputs["identifier"] = 'w[3-1]: '
+        return {**inputs, **super()._transCritPhaseHTwoPhaseCQimposed(inputs)}
+
+    def calculateHeatTransferCoeff(self, temp, heatFlux, xIn=None, xOut=None, massFlux=None):
         """
         Using the Cooper pool boiling algorithm, calculates the heat transfer
-        coefficient given pressure and qFlux
+        coefficient given pressure and heatFlux
 
 
         Parameters
         ----------
         temp : str
             'Hot' or 'Cold', denotes the stream being acted upon.
-        qFlux : float
+        heatFlux : float
             heat transferred.
         xIn : float, optional
             vapor fraction input on the cold side. The default is None.
@@ -1302,7 +1459,8 @@ class BrazedPlateHEX(HeatExchanger):
             heat transfer coefficient.
 
         """
-        return Cooper_PoolBoiling(getattr(self, f"fluid{temp}"), self.surfaceRoughness, qFlux, str(self.type))
+        return Cooper_PoolBoiling(getattr(self, f"fluid{temp}"), self.surfaceRoughness, heatFlux,
+                                  str(self.type))
 
     def htdp(self, fluid, temperature, pressure, massFlow):
         """
@@ -1370,12 +1528,12 @@ class CoaxialHEX(HeatExchanger):
         volumeChannels = {}
         areasFlow = {}
         for temp in ['Hot', 'Cold']:
-            self.logger.debug("pressure in {temp}: %g", self.fluidProps[temp].pressureIn)
-            areaWetted, diameterHydraulic, volumeChannel, areaFlow = self.singlePhaseGeomCorrelations(temp)
-            setattr(self, f"diameterHydraulic{temp}", diameterHydraulic)
-            setattr(self, f"areaWetted{temp}", areaWetted)
-            volumeChannels[temp] = volumeChannel
-            areasFlow[temp] = areaFlow
+            self.logger.debug("pressure in {temp}: %g", self.fluidProps[temp].get('pressureIn'))
+            setattr(self, f"diameterHydraulic{temp}", self.calculateHydraulicDiameter(temp))
+            setattr(self, f"areaWetted{temp}", self.calculateAreaWetted(temp))
+            areasFlow[temp] = self.calculateAreaFlow(temp)
+            volumeChannels[temp] = self.calculateChannelVolume(areasFlow[temp])
+        self.setThermalResistanceWall()
         self.setUpCalculation(volumeChannels, areasFlow)
         low, high = 0, self.qMax
         try:
@@ -1385,40 +1543,139 @@ class CoaxialHEX(HeatExchanger):
             raise
         self.postProcess(self.cellList)
 
-    def singlePhaseGeomCorrelations(self, temp):
+    def calculateAreaWetted(self, side):
         """
-        Calculates geometries of the coaxial heat exchanger needed for further
-        heat exchange calculations
+        Calculates the wetted area of the given side
 
         Parameters
         ----------
-        temp : string
-            hot or cold side.
+        side : string
+            'Hot' or 'Cold' side.
 
         Returns
         -------
-        areaWetted : float
-            wetted area of "temp".
-        diameterHydraulic : float
-            hydraulic diameter.
-        volumeChannel : float
-            volume of the channel.
-        areaFlow : float
-            area perpendicular to flow.
+        float
+            wetted area of side given by 'side' variable.
 
         """
-        if temp == 'Hot':
-            areaWetted = np.pi*self.innerTubeID*self.effectiveLength
-            areaFlow = np.pi*self.innerTubeID**2/4.0
-            diameterHydraulic = self.innerTubeID
-        else:
-            areaWetted = np.pi*self.innerTubeOD*self.effectiveLength
-            areaFlow = np.pi*(self.outerTubeID**2 - self.innerTubeOD**2)/4.0
-            diameterHydraulic = self.outerTubeID - self.innerTubeOD
-        volumeChannel = self.effectiveLength*areaFlow
+        if side == 'Hot':
+            return np.pi*self.innerTubeID*self.effectiveLength
+        return np.pi*self.innerTubeOD*self.effectiveLength
+
+    def calculateChannelVolume(self, areaFlow):
+        """
+        Calculates the volume of the channel
+
+        Parameters
+        ----------
+        areaFlow : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        float
+            DESCRIPTION.
+
+        """
+        return self.effectiveLength*areaFlow
+
+    def calculateHydraulicDiameter(self, side):
+        """
+        Calculares the hydraulic diameter of the channel
+
+        Parameters
+        ----------
+        side : string
+            'Hot' or 'Cold' side.
+
+        Returns
+        -------
+        float
+            hydraulic diameter of channel.
+
+        """
+        if side == 'Hot':
+            return self.innerTubeID
+        return self.outerTubeID - self.innerTubeOD
+
+    def calculateAreaFlow(self, side):
+        """
+        Calculates the area of the channel perpendicular to the flow of the fluid
+
+        Parameters
+        ----------
+        side : string
+            'Hot' or 'Cold' side.
+
+        Returns
+        -------
+        float
+            channel area perpendicular to flow.
+
+        """
+        if side == 'Hot':
+            return np.pi*self.innerTubeID**2/4.0
+        return np.pi*(self.outerTubeID**2 - self.innerTubeOD**2)/4.0
+
+    def setThermalResistanceWall(self):
+        """
+        Sets the thermal resistance of the wall between the "Hot" and "Cold" sides
+
+        Returns
+        -------
+        None.
+
+        """
         self.thermalResistanceWall = np.log(self.innerTubeOD/self.innerTubeID)/\
             (2*np.pi*self.conductivity*self.effectiveLength)
-        return areaWetted, diameterHydraulic, volumeChannel, areaFlow
+
+    def _onePhaseHOnePhaseCQimposed(self,inputs):
+        outputs = {}
+        inputs.update({"identifier": 'w[1-1]: '})
+        for temp in ['Hot', 'Cold']:
+            outputs[temp] = self.htdp(getattr(self, f"fluid{temp}"), inputs[f'tempMean{temp}'],
+                          self.fluidProps[temp].pressureIn, getattr(self, f"massFlow{temp}"), side=temp)
+            inputs.update({f"heatTransferCoeff{temp}": outputs[temp]['heatTransferCoeff'],
+                           f"pressureDrop{temp}": outputs[temp]['pressureDrop']})
+        return {**inputs, **super()._onePhaseHOnePhaseCQimposed(inputs)}
+
+    def _onePhaseHTwoPhaseCQimposed(self,inputs):
+        outputsHot = self.htdp(self.fluidHot, inputs['tempMeanHot'],self.fluidProps["Hot"].get('pressureIn'),
+                               self.massFlowHot, side="Hot")
+        inputs.update({"identifier": 'w[3-2]: ',
+                       "heatTransferCoeffHot": outputsHot['heatTransferCoeff'],
+                       "pressureDropHot": outputsHot['pressureDrop'],
+                       "C": None
+                       })
+        return {**inputs, **super()._onePhaseHTwoPhaseCQimposed(inputs)}
+
+    def _twoPhaseHOnePhaseCQimposed(self, inputs):
+        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'],
+                                self.fluidProps["Cold"].get('pressureIn'),
+                                self.massFlowCold, side="Cold")
+        inputs.update({"identifier": 'w[2-1]: ',
+                       "heatTransferCoeffCold": outputsCold['heatTransferCoeff'],
+                       "specificHeatCold": outputsCold['heatCapacity'],
+                       "pressureDropCold": outputsCold['pressureDrop'],
+                       "C": None
+                       })
+        return {**inputs, **super()._twoPhaseHOnePhaseCQimposed(inputs)}
+
+    def _transCritPhaseHTwoPhaseCQimposed(self,inputs):
+        #TODO: needs to be re-worked
+        inputs["identifier"] = 'w[3-1]: '
+        return {**inputs, **super()._transCritPhaseHTwoPhaseCQimposed(inputs)}
+
+    def _transCritPhaseHOnePhaseCQimposed(self, inputs):
+        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'],
+                                self.fluidProps["Cold"].get('pressureIn'),
+                                self.massFlowCold, side="Cold")
+        inputs.update({"identifier": 'w[1-2]: ',
+                       "heatTransferCoeffCold": outputsCold['heatTransferCoeff'],
+                       "specificHeatCold": outputsCold['heatCapacity'],
+                       "pressureDropCold": outputsCold['pressureDrop']
+            })
+        return {**inputs, **super()._transCritPhaseHOnePhaseCQimposed(inputs)}
 
 
     def htdp(self, fluid, temperature, pressure, massFlow, side):
@@ -1427,7 +1684,6 @@ class CoaxialHEX(HeatExchanger):
         for single phase fluids of the plate heat exchanger
         Inputs: temperature [K] and pressure [Pa]
         outputs: h [W/m^2-K] and cp [J/kg-K]
-        Note: There are several other output. Check "singlePhaseThermoCorrelations" function
         for more details.
 
 
@@ -1446,7 +1702,7 @@ class CoaxialHEX(HeatExchanger):
         -------
         outputs
             dict of outputs containing the following:
-                'heatTransferCoeff': Heat transfer coeffcient in W/m^2/K
+                'heatTransferCoeff': Heat transfer coefficient in W/m^2/K
                 'pressureDrop': Pressure drop in Pa
                 'reynoldsNum':  Reynolds number
                 'velocity': Velocity of fluid in channel in m/s
@@ -1456,30 +1712,26 @@ class CoaxialHEX(HeatExchanger):
         """
         heatCapacity = fluid.calculateHeatCapacity(ThermoProps.PT, pressure, temperature)
         specificVolume = 1/fluid.calculateDensity(ThermoProps.PT, pressure, temperature)
-        if side == "Hot":
+        if side == 'Hot':
             frictionFactor, heatTransferCoeff, reynoldsNum = f_h_1phase_Tube(massFlow,
                                             self.innerTubeID, temperature, pressure, fluid)
-            diameterHydraulic = self.innerTubeID
-        elif side == 'Cold':
+        else:
             frictionFactor, heatTransferCoeff, reynoldsNum = f_h_1phase_Annulus(massFlow,
                                 self.outerTubeID, self.innerTubeOD, temperature, pressure, fluid)
-            diameterHydraulic = self.outerTubeID - self.innerTubeOD
-        pressureGradient = frictionFactor*specificVolume*self.fluidProps[side].massFluxAverage**2/\
-            (2.*diameterHydraulic)
+        pressureGradient = frictionFactor*specificVolume*self.fluidProps[side].get('massFluxAverage')**2/\
+            (2.*self.calculateHydraulicDiameter(side))
         pressureDrop = pressureGradient*self.effectiveLength
         outputs = {
-            'diameterHydraulic': diameterHydraulic,
             'heatTransferCoeff': heatTransferCoeff,
             'pressureDrop': pressureDrop,
-            'reynoldsNum': reynoldsNum,
             'heatCapacity': heatCapacity,
         }
         return outputs
 
-    def calculateHeatTransferCoeff(self, temp, qFlux, xIn=None, xOut=None, massFlux=None):
+    def calculateHeatTransferCoeff(self, temp, heatFlux, xIn=None, xOut=None, massFlux=None):
         """
         Using the Kandlikar Evaporation algorithm, calculates the heat transfer
-        coefficient of fluid with given temperature (Hot or Cold) given qFlux,
+        coefficient of fluid with given temperature (Hot or Cold) given heatFlux,
         input and output vapor fraction, and mass flux
 
 
@@ -1487,11 +1739,11 @@ class CoaxialHEX(HeatExchanger):
         ----------
         temp : str
             'Hot' or 'Cold', denotes the stream being acted upon.
-        qFlux : float
+        heatFlux : float
             heat transferred.
         xIn : float, optional
             vapor fraction input on the cold side. The default is None.
-        xOut : TYPE, optional
+        xOut : float, optional
             vapor fraction input on the hot side. The default is None.
         massFlux : float, optional
             mass. The default is None.
@@ -1502,57 +1754,6 @@ class CoaxialHEX(HeatExchanger):
             heat transfer coefficient.
 
         """
-        return KandlikarEvaporation_average(xIn, xOut, getattr(self, f"fluid{temp}"), massFlux,
-                        getattr(self, f"diameterHydraulic{temp}"), qFlux, self.fluidProps[temp].tBubble,
-                        self.fluidProps[temp].tempDew)
-
-    def _onePhaseHOnePhaseCQimposed(self,inputs):
-        #Evaluate heat transfer coefficient for both fluids
-        outputs = {}
-        inputs.update({"identifier": 'w[1-1]: '})
-        for temp in ['Hot', 'Cold']:
-            outputs[temp] = self.htdp(getattr(self, f"fluid{temp}"), inputs[f'tempMean{temp}'],
-                          self.fluidProps[temp].pressureIn, getattr(self, f"massFlow{temp}"), side=temp)
-            inputs.update({f"heatTransferCoeff{temp}": outputs[temp]['heatTransferCoeff'],
-                           f"pressureDrop{temp}": outputs[temp]['pressureDrop']})
-        return super()._onePhaseHOnePhaseCQimposed(inputs)
-
-    def _onePhaseHTwoPhaseCQimposed(self,inputs):
-        outputsHot = self.htdp(self.fluidHot, inputs['tempMeanHot'],self.fluidProps["Hot"].pressureIn,
-                               self.massFlowHot, side="Hot")
-        inputs.update({"identifier": 'w[3-2]: ',
-                       "heatTransferCoeffHot": outputsHot['heatTransferCoeff'],
-                       "pressureDropHot": outputsHot['pressureDrop'],
-                       "C": None
-                       })
-        return super()._onePhaseHTwoPhaseCQimposed(inputs)
-
-    def _twoPhaseHOnePhaseCQimposed(self, inputs):
-        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'], self.fluidProps["Cold"].pressureIn,
-                                self.massFlowCold, side="Cold")
-        inputs.update({"identifier": 'w[2-1]: ',
-                       "heatTransferCoeffCold": outputsCold['heatTransferCoeff'],
-                       "specificHeatCold": outputsCold['heatCapacity'],
-                       "pressureDropCold": outputsCold['pressureDrop'],
-                       "C": None
-                       })
-        return super()._twoPhaseHOnePhaseCQimposed(inputs)
-
-    def _transCritPhaseHTwoPhaseCQimposed(self,inputs):
-        #TODO: needs to be re-worked
-        inputs["identifier"] = 'w[3-1]: '
-        return super()._transCritPhaseHTwoPhaseCQimposed(inputs)
-
-    def _transCritPhaseHOnePhaseCQimposed(self, inputs):
-        outputsCold = self.htdp(self.fluidCold, inputs['tempMeanCold'], self.fluidProps["Cold"].pressureIn,
-                            self.massFlowCold, side="Cold")
-        inputs.update({"identifier": 'w[1-2]: ',
-                       "heatTransferCoeffCold": outputsCold['heatTransferCoeff'],
-                       "specificHeatCold": outputsCold['heatCapacity'],
-                       "pressureDropCold": outputsCold['pressureDrop']
-            })
-        return super()._transCritPhaseHOnePhaseCQimposed(inputs)
-
-if __name__=='__main__':
-    logging.basicConfig(filename="ACHPlog.log", level=logging.DEBUG, encoding='utf-8',
-                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        return kandlikarEvaporationAvg(xIn, xOut, getattr(self, f"fluid{temp}"), massFlux,
+                    getattr(self, f"diameterHydraulic{temp}"), heatFlux, self.fluidProps[temp].get('tBubble'),
+                    self.fluidProps[temp].get('tempDew'))

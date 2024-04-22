@@ -6,12 +6,6 @@ import numpy as np
 import CoolProp as CP
 from ACHP.models.Fluid import ThermoProps
 
-try:
-    import psyco
-    psyco.full()
-except ImportError:
-    pass
-
 #Machine precision
 machineEps = np.finfo(np.float64).eps
 
@@ -72,7 +66,8 @@ class FluidMechanics():
     def calculateNusseltNumber(frictionFactorDarcy, reynoldsNum, prandtlNum, frictionFactor=None):
         """
         Calculates the Nusselt number of a fluid give a calculated Darcy friction factor,
-        Reynolds number, and Prandtl number
+        Reynolds number, and Prandtl number. Uses the Gnielinski correlation for turbulent
+        flow in tubes. It is valid for 0.5 <= Pr <= 2000 and 3000 <= Re <= 5e6
 
         Parameters
         ----------
@@ -82,6 +77,8 @@ class FluidMechanics():
             Reynolds number of fluid.
         prandtlNum : float
             Prandtl number of fluid.
+        frictionFactor : float
+            other friction factor.
 
         Returns
         -------
@@ -91,7 +88,7 @@ class FluidMechanics():
         """
         if not frictionFactor:
             return (frictionFactorDarcy/8.0)*(reynoldsNum - 1000)*prandtlNum/\
-                (1 + 12.7*np.sqrt(frictionFactor/8.0)*(prandtlNum**(2/3) - 1))
+                (1 + 12.7*np.sqrt(frictionFactorDarcy/8.0)*(prandtlNum**(2/3) - 1))
         return (frictionFactorDarcy/8.0)*reynoldsNum*prandtlNum/\
                 (1.07 + 12.7*np.sqrt(frictionFactor/8.0)*(prandtlNum**(2/3) - 1))
 
@@ -138,48 +135,112 @@ class FluidMechanics():
             Grashof number of fluid.
 
         """
-        grashofNum = g*beta*(tempSurface-tempBulk)*length**3/\
-                viscosity**2
+        grashofNum = abs(g*beta*(tempSurface-tempBulk)*length**3/\
+                viscosity**2)
         return grashofNum
 
-def getPhaseFromPandH(fluid,pressure,enthalpy,tBubble,tDew,rhosatL,rhosatV):
-    """
-    Convenience function to return just the Phase without temperature or density
-    """
-    return getTempDensityPhaseFromPandH(fluid,pressure,enthalpy,tBubble,tDew,rhosatL,rhosatV)[2]
+    def calculateHagenNumber(reynoldsNum, inclinationAngle):
+        """
+        Calculates the Hagen number of a fluid
 
-def getTempDensityPhaseFromPandH(fluid,pressure,enthalpy,tBubble,tDew,rhosatL=None,rhosatV=None):
-    """
-    Convenience function to find temperature, density, and phase of fluid as a
-    function of pressure and enthalpy
-    """
-    logger = logging.getLogger("Correlations")
-    logger.debug("fluid %s backend: %s", fluid.name, fluid.backEnd,
-                 extra={"methodname": "getTempDensityPhaseFromPandH"})
-    if 'incomp' in fluid.backEnd.lower() or pressure >= fluid.pressureCritical:
-        temperature = fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
-        density = fluid.calculateDensity(ThermoProps.HP, enthalpy, pressure)
-        if 'incomp' in fluid.backEnd.lower():
-            return temperature, density, 'Subcooled'
-        if temperature >= fluid.calculateCriticalTemperature():
-            return temperature, density, 'Supercritical'
-        return temperature, density, 'Supercrit_liq'
-    if not rhosatL:
-        rhosatL = fluid.calculateDensity(ThermoProps.QT, 0.0, tBubble)
-        rhosatV = fluid.calculateDensity(ThermoProps.QT, 1.0, tDew)
-    hsatL = fluid.calculateEnthalpy(ThermoProps.DT, rhosatL, tBubble)
-    hsatV = fluid.calculateEnthalpy(ThermoProps.DT, rhosatV, tDew)
-    if enthalpy > hsatV or enthalpy < hsatL:
-        temperature = fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
-        density = fluid.calculateDensity(ThermoProps.HP, enthalpy, pressure)
-        if enthalpy > hsatV:
-            return temperature,density,'Superheated'
-        return temperature,density,'Subcooled'
+        Parameters
+        ----------
+        reynoldsNum : float
+            Reynolds number of the liquie.
+        inclinationAngle : float
+            inclination angle of the waves on a heat exchanger.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        """
+        #Calculate the friction factor zeta
+        if reynoldsNum < 2000:
+            zeta0 = 64/reynoldsNum
+            zeta1zero = 597/reynoldsNum + 3.85
+        else:
+            zeta0 = (1.8*np.log(reynoldsNum) - 1.5)**(-2)
+            zeta1zero = 39/reynoldsNum**0.289
+        varA = 3.8
+        varB = 0.18
+        varC = 0.36
+        zeta1 = varA*zeta1zero
+        #RHS from Equation 18
+        rhs = np.cos(inclinationAngle)/np.sqrt(varB*np.tan(inclinationAngle) +\
+                        varC*np.sin(inclinationAngle) + zeta0/np.cos(inclinationAngle)) +\
+                        (1 - np.cos(inclinationAngle))/np.sqrt(zeta1)
+        zeta = 1/rhs**2
+        return zeta*reynoldsNum**2/2
+
+# def getTempDensityPhaseFromPandH(fluid,pressure,enthalpy,tBubble,tDew,rhosatL=None,rhosatV=None):
+#     """
+#     Convenience function to find temperature, density, and phase of fluid as a
+#     function of pressure and enthalpy
+#     """
+#     logger = logging.getLogger("Correlations")
+#     logger.debug("fluid %s backend: %s", fluid.name, fluid.backEnd,
+#                  extra={"methodname": "getTempDensityPhaseFromPandH"})
+#     if 'incomp' in fluid.backEnd.lower() or pressure >= fluid.pressureCritical:
+#         temperature = fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
+#         density = fluid.calculateDensity(ThermoProps.HP, enthalpy, pressure)
+#         if 'incomp' in fluid.backEnd.lower():
+#             return temperature, density, 'Subcooled'
+#         if temperature >= fluid.calculateCriticalTemperature():
+#             return temperature, density, 'Supercritical'
+#         return temperature, density, 'Supercrit_liq'
+#     if not rhosatL:
+#         rhosatL = fluid.calculateDensity(ThermoProps.QT, 0.0, tBubble)
+#         rhosatV = fluid.calculateDensity(ThermoProps.QT, 1.0, tDew)
+#     hsatL = fluid.calculateEnthalpy(ThermoProps.DT, rhosatL, tBubble)
+#     hsatV = fluid.calculateEnthalpy(ThermoProps.DT, rhosatV, tDew)
+#     if enthalpy > hsatV or enthalpy < hsatL:
+#         temperature = fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
+#         density = fluid.calculateDensity(ThermoProps.HP, enthalpy, pressure)
+#         if enthalpy > hsatV:
+#             return temperature, density, 'Superheated'
+#         return temperature, density, 'Subcooled'
+#     fraction = (enthalpy - hsatL)/(hsatV - hsatL) #[-]
+#     volumeSpecific = fraction/rhosatV + (1 - fraction)/rhosatL #[m^3/kg]
+#     temperature = fraction*tDew + (1 - fraction)*tBubble #[K]
+#     density = 1/volumeSpecific #[kg/m^3]
+#     return temperature, density, 'TwoPhase'
+
+def getTempFromPandH(fluid, pressure, enthalpy, hexType):
+    hsatL = fluid.fluidApparatiProps[hexType].get('enthalpySatLiquid')
+    hsatV = fluid.fluidApparatiProps[hexType].get('enthalpySatVapor')
+    if 'incomp' in fluid.backEnd.lower() or pressure >= fluid.pressureCritical or enthalpy > hsatV or enthalpy < hsatL:
+        return fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
     fraction = (enthalpy - hsatL)/(hsatV - hsatL) #[-]
-    volumeSpecific = fraction/rhosatV + (1 - fraction)/rhosatL #[m^3/kg]
-    temperature = fraction*tDew + (1 - fraction)*tBubble #[K]
-    density = 1/volumeSpecific #[kg/m^3]
-    return temperature, density, 'TwoPhase'
+    return fraction*fluid.fluidApparatiProps[hexType].get('tempDew') + \
+        (1 - fraction)*fluid.fluidApparatiProps[hexType].get('tempBubble') #[K]
+
+
+def getDensityFromPandH(fluid, pressure, enthalpy, hexType):
+    hsatL = fluid.fluidApparatiProps[hexType].get('enthalpySatLiquid')
+    hsatV = fluid.fluidApparatiProps[hexType].get('enthalpySatVapor')
+    if 'incomp' in fluid.backEnd.lower() or pressure >= fluid.pressureCritical or enthalpy > hsatV or enthalpy < hsatL:
+        return fluid.calculateDensity(ThermoProps.HP, enthalpy, pressure)
+    fraction = (enthalpy - hsatL)/(hsatV - hsatL) #[-]
+    volumeSpecific = fraction/fluid.fluidApparatiProps[hexType].get('densitySatVapor') + \
+        (1 - fraction)/fluid.fluidApparatiProps[hexType].get('densitySatLiquid') #[m^3/kg]
+    return 1/volumeSpecific #[kg/m^3]
+
+
+def getPhaseFromPandH(fluid, pressure, enthalpy, hexType):
+    if 'incomp' in fluid.backEnd.lower():
+        return 'Subcooled'
+    if pressure >= fluid.pressureCritical:
+        temperature = fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
+        if temperature >= fluid.calculateCriticalTemperature():
+            return 'Supercritical'
+        return 'Supercrit_liq'
+    if enthalpy > fluid.fluidApparatiProps[hexType].get('enthalpySatVapor'):
+        return 'Superheated'
+    if enthalpy < fluid.fluidApparatiProps[hexType].get('enthalpySatLiquid'):
+        return 'Subcooled'
+    return 'TwoPhase'
 
 def twoPhaseDensity(fluid, xMin, xMax, tDew, tBubble, slipModel='Zivi'):
     """
@@ -188,7 +249,7 @@ def twoPhaseDensity(fluid, xMin, xMax, tDew, tBubble, slipModel='Zivi'):
     rhog = fluid.calculateDensity(ThermoProps.QT, 1.0, tDew)
     rhof = fluid.calculateDensity(ThermoProps.QT, 0.0, tBubble)
     if slipModel == 'Zivi':
-        sVal = pow(rhof/rhog,0.3333)
+        sVal = pow(rhof/rhog, 0.3333)
     elif slipModel == 'Homogeneous':
         sVal = 1
     else:
@@ -393,7 +454,7 @@ def lockhartMartinelli(fluid, massFlux, diameter, quality, tBubble, tDew, consta
     alpha = 1 - paramLM/np.sqrt(paramLM*paramLM + 20*paramLM + 1)
     return dpdz, alpha
 
-def ShahEvaporation_Average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubble,tDew):
+def ShahEvaporation_Average(xMin,xMax,fluid,massFlux,diameter,heatFlux,tBubble,tDew):
     """
     Returns the average heat transfer coefficient between qualities of xMin and xMax.
 
@@ -403,7 +464,7 @@ def ShahEvaporation_Average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubble,tDe
     * AS : AbstractState with the refrigerant name and backend
     * massFlux : Mass flux [kg/m^2/s]
     * diameter : Diameter of tube [m]
-    * q_flux : Heat transfer flux [W/m^2]
+    * heatFlux : Heat transfer flux [W/m^2]
     * tBubble : Bubblepoint temperature of refrigerant [K]
     * tDew : Dewpoint temperature of refrigerant [K]
     """
@@ -414,7 +475,7 @@ def ShahEvaporation_Average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubble,tDe
     AS.update(CP.QT_INPUTS,0.0,tBubble)
     rho_f = AS.rhomass() #[kg/m^3]
     mu_f = AS.viscosity() #[Pa-s OR kg/m-s]
-    cp_f = AS.cpmass() #[J/kg-K]
+    heatCapacityLiq = AS.cpmass() #[J/kg-K]
     k_f = AS.conductivity() #[W/m-K]
     h_l = AS.hmass() #[J/kg]
 
@@ -426,14 +487,14 @@ def ShahEvaporation_Average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubble,tDe
     h_v = AS.hmass() #[J/kg]
 
     h_fg = h_v - h_l #[J/kg]
-    Pr_f = cp_f * mu_f / k_f #[-]
+    prandtlNumLiq = heatCapacityLiq * mu_f / k_f #[-]
     Pr_g = cp_g * mu_g / k_g #[-]
 
     g_grav = 9.81 #[m/s^2]
 
     # Shah evaporation correlation
     Fr_L = massFlux**2 / (rho_f*rho_f * g_grav * diameter) #[-]
-    Bo = q_flux / (massFlux * h_fg) #[-]
+    Bo = heatFlux / (massFlux * h_fg) #[-]
 
     if Bo < 0:
         raise ValueError('Heat flux for Shah Evaporation must be positive')
@@ -450,13 +511,13 @@ def ShahEvaporation_Average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubble,tDe
 
         #If the quality is above 0.999, linearly interpolate to avoid division by zero
         if x>0.999:
-            h_1=ShahEvaporation(1.0) #Fully fry
+            heatTransferCoeff1=ShahEvaporation(1.0) #Fully fry
             h_999=ShahEvaporation(0.999) #At a quality of 0.999
-            return (h_1-h_999)/(1.0-0.999)*(x-0.999)+h_999 #Linear interpolation
+            return (heatTransferCoeff1-h_999)/(1.0-0.999)*(x-0.999)+h_999 #Linear interpolation
         if abs(x) < 5*machineEps:
-            h_L = 0.023 * (massFlux*(1 - x)*diameter/mu_f)**(0.8) * Pr_f**(0.4) * k_f / diameter #[W/m^2-K]
+            h_L = 0.023 * (massFlux*(1 - x)*diameter/mu_f)**(0.8) * prandtlNumLiq**(0.4) * k_f / diameter #[W/m^2-K]
             return h_L
-        h_L = 0.023 * (massFlux*(1 - x)*diameter/mu_f)**(0.8) * Pr_f**(0.4) * k_f / diameter #[W/m^2-K]
+        h_L = 0.023 * (massFlux*(1 - x)*diameter/mu_f)**(0.8) * prandtlNumLiq**(0.4) * k_f / diameter #[W/m^2-K]
         Co = (1 / x - 1)**(0.8) * (rho_g / rho_f)**(0.5) #[-]
 
         if Fr_L >= 0.04:
@@ -493,7 +554,7 @@ def ShahEvaporation_Average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubble,tDe
     #Use Simpson's rule to carry out numerical integration to get average
     return simps(h,x)/(xMax-xMin)
 
-def KandlikarEvaporation_average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubble,tDew):
+def kandlikarEvaporationAvg(xMin,xMax,fluid,massFlux,diameter,heatFlux,tBubble,tDew):
     """
     Kandlikar (1990) recommended by Petterson et al. (2000) for CO2, Heat transfer and pressure
     drop for flow supercritical and subcritical CO2 in microchannel tubes
@@ -506,55 +567,50 @@ def KandlikarEvaporation_average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubbl
     Required parameters:
     * xMin : The minimum quality for the range [-]
     * xMax : The maximum quality for the range [-]
-    * AS : AbstractState with the refrigerant name and backend
+    * fluid : fluid
     * massFlux : Mass flux [kg/m^2/s]
     * diameter : Diameter of tube [m]
-    * q_flux : Heat transfer flux [W/m^2]
+    * heatFlux : Heat transfer flux [W/m^2]
     * tBubble : Bubblepoint temperature of refrigerant [K]
     * tDew : Dewpoint temperature of refrigerant [K]
     """
-    AS = fluid.abstractState.abstractState
     # ********************************
     #        Necessary Properties
     # ********************************
-    AS.update(CP.QT_INPUTS,0.0,tBubble)
-    rho_f = AS.rhomass() #[kg/m^3]
-    mu_f = AS.viscosity() #[Pa-s OR kg/m-s]
-    cp_f = AS.cpmass() #[J/kg-K]
-    k_f = AS.conductivity() #[W/m-K]
-    h_l = AS.hmass() #[J/kg]
+    densityLiq = fluid.calculateDensity(ThermoProps.QT, 0.0, tBubble)
+    viscosityLiq = fluid.calculateViscosity(ThermoProps.QT, 0.0, tBubble)
+    heatCapacityLiq = fluid.calculateHeatCapacity(ThermoProps.QT, 0.0, tBubble)
+    conductivityLiq = fluid.calculateConductivity(ThermoProps.QT, 0.0, tBubble)
+    enthalpyLiq = fluid.calculateEnthalpy(ThermoProps.QT, 0.0, tBubble)
 
-    AS.update(CP.QT_INPUTS,1.0,tDew)
-    rho_g = AS.rhomass() #[kg/m^3]
-    mu_g = AS.viscosity() #[Pa-s OR kg/m-s]
-    cp_g = AS.cpmass() #[J/kg-K]
-    k_g = AS.conductivity() #[W/m-K]
-    h_v = AS.hmass() #[J/kg]
+    densityVap = fluid.calculateDensity(ThermoProps.QT, 1.0, tDew)
+    viscosityVap = fluid.calculateViscosity(ThermoProps.QT, 1.0, tDew)
+    heatCapacityVap = fluid.calculateHeatCapacity(ThermoProps.QT, 1.0, tDew)
+    conductivityVap = fluid.calculateConductivity(ThermoProps.QT, 1.0, tDew)
+    enthalpyVap = fluid.calculateEnthalpy(ThermoProps.QT, 1.0, tDew)
 
-    h_fg = h_v - h_l #[J/kg]
-    Pr_f = cp_f * mu_f / k_f #[-]
-    Pr_g = cp_g * mu_g / k_g #[-]
+    enthalpyEvap = enthalpyVap - enthalpyLiq
 
-    g_grav = 9.81 #[m/s^2]
+    prandtlNumLiq = FluidMechanics.calculatePrandtlNumber(heatCapacityLiq, viscosityLiq, conductivityLiq)
+    prandtlNumVap = FluidMechanics.calculatePrandtlNumber(heatCapacityVap, viscosityVap, conductivityVap)
 
     # Petterson evaporation correlation
-    Fr_L = massFlux**2 / (rho_f*rho_f * g_grav * diameter) #[-]
-    Bo = q_flux / (massFlux * h_fg) #[-]
+    Fr_L = massFlux**2/(densityLiq**2*g*diameter) #[-]
+    Bo = heatFlux/(massFlux*enthalpyEvap) #[-]
 
     if Bo < 0:
         raise ValueError('Heat flux for Petterson Evaporation must be positive')
 
-    F_fl = 1 #Forster and Zuber multiplier depend on fluid float. CO2 is not available, therefore F_fl=1 (for water) is selected.
+    forsterF1 = 1 #Forster and Zuber multiplier depend on fluid float. CO2 is not available, therefore forsterF1=1 (for water) is selected.
 
     #Kandlikar correlation constants for CO2
     c_c_1 = 1.1360
     c_c_2 = -0.9
     c_c_3 = 667.2
-    c_c_4 = 0.7
+    c_4 = 0.7
     c_n_1 = 0.6683
     c_n_2 = -0.2
     c_n_3 = 1058.0
-    c_n_4 = 0.7
     if Fr_L > 0.4:
         c_c_5 = 0.0
         c_n_5 = 0.0
@@ -563,28 +619,27 @@ def KandlikarEvaporation_average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubbl
         c_n_5 = 0.3
 
     #Pure vapor single-phase heat transfer coefficient
-    h_g = 0.023 * (massFlux*diameter/mu_g)**(0.8) * Pr_g**(0.4) * k_g / diameter #[W/m^2-K]
+    heatTransferCoeffVap = 0.023*(massFlux*diameter/viscosityVap)**(0.8)*prandtlNumVap**(0.4)*conductivityVap/diameter #[W/m^2-K]
 
-    def KandlikarEvaporation(x):
-        if abs(1-x)<5*machineEps:
-            return h_g
-
+    def kandlikarEvaporation(quality):
+        heatTransferCoeffLiq = heatTransferCoeffVap*(1 - quality)**(0.8)
+        if abs(1 - quality) < 5*machineEps:
+            return heatTransferCoeffVap
+        elif abs(quality) < 5*machineEps:
+            return heatTransferCoeffLiq
         #If the quality is above 0.999, linearly interpolate to avoid division by zero
-        if x>0.999:
-            h_1=KandlikarEvaporation(1.0) #Fully fry
-            h_999=KandlikarEvaporation(0.999) #At a quality of 0.999
-            return (h_1-h_999)/(1.0-0.999)*(x-0.999)+h_999 #Linear interpolation
-        if abs(x)<5*machineEps:
-            h_L = 0.023 * (massFlux*(1 - x)*diameter/mu_f)**(0.8) * Pr_f**(0.4) * k_f / diameter #[W/m^2-K]
-            return h_L
-        h_L = 0.023 * (massFlux*(1 - x)*diameter/mu_f)**(0.8) * Pr_f**(0.4) * k_f / diameter #[W/m^2-K]
+        elif quality > 0.999:
+            heatTransferCoeff1 = kandlikarEvaporation(1.0) #Fully fry
+            h_999 = kandlikarEvaporation(0.999) #At a quality of 0.999
+            return (heatTransferCoeff1 - h_999)/(1.0 - 0.999)*(quality - 0.999) + h_999 #Linear interpolation
 
-        Co = (1 / x - 1)**(0.8) * (rho_g / rho_f)**(0.5) #[-]
+
+        Co = (1/quality - 1)**(0.8)*(densityVap/densityLiq)**(0.5) #[-]
 
         #HTC due to convective boiling
-        h_c = h_L*(c_c_1*pow(Co, c_c_2)*pow((25.0*Fr_L), c_c_5) + c_c_3*pow(Bo, c_c_4)*F_fl)
+        h_c = heatTransferCoeffLiq*(c_c_1*pow(Co, c_c_2)*pow((25.0*Fr_L), c_c_5) + c_c_3*pow(Bo, c_4)*forsterF1)
         #HTC due to nucleate boiling
-        h_n = h_L*(c_n_1*pow(Co, c_n_2)*pow((25.0*Fr_L), c_n_5) + c_n_3*pow(Bo, c_n_4)*F_fl)
+        h_n = heatTransferCoeffLiq*(c_n_1*pow(Co, c_n_2)*pow((25.0*Fr_L), c_n_5) + c_n_3*pow(Bo, c_4)*forsterF1)
 
         #This was found in ACCO2 model, however Petterson (2000) recommends to take the max of h_n and h_c
         #if (Co < 0.65):
@@ -594,18 +649,17 @@ def KandlikarEvaporation_average(xMin,xMax,fluid,massFlux,diameter,q_flux,tBubbl
         h = max(h_c,h_n)
         return h
 
-    #Calculate h over the range of x
-    x=np.linspace(xMin,xMax,100)
-    h=np.zeros_like(x)
-    for i, xVal in x:
-        h[i]=KandlikarEvaporation(xVal)
+    #Calculate h over the range of quality
+    quality = np.linspace(xMin,xMax,100)
+    h = np.zeros_like(quality)
+    for i, xVal in quality:
+        h[i] = kandlikarEvaporation(xVal)
 
-    #if xMin == xMax, or they are really really close to being the same
-    if abs(xMax-xMin)<5*machineEps:
-        #return just one of the edge values
+    #if xMin ~= xMax, return just one of the edge values
+    if abs(xMax - xMin) < 5*machineEps:
         return h[0]
     #Use Simpson's rule to carry out numerical integration to get average
-    return simps(h,x)/(xMax-xMin)
+    return simps(h, quality)/(xMax - xMin)
 
 def LongoCondensation(x_avg,massFlux,diameterHydraulic,fluid,TsatL,TsatV):
 
@@ -636,14 +690,14 @@ def ShahCondensation_Average(xMin,xMax,fluid,massFlux,D,pressure,TsatL):
     AS = fluid.abstractState.abstractState
     AS.update(CP.QT_INPUTS,0.0,TsatL)
     mu_f = AS.viscosity() #[Pa-s OR kg/m-s]
-    cp_f = AS.cpmass() #[J/kg-K]
+    heatCapacityLiq = AS.cpmass() #[J/kg-K]
     k_f = AS.conductivity() #[W/m-K]
-    Pr_f = cp_f * mu_f / k_f #[-]
+    prandtlNumLiq = heatCapacityLiq * mu_f / k_f #[-]
     pcrit = AS.p_critical() #[Pa]
     Pstar = pressure / pcrit
-    h_L = 0.023 * (massFlux*D/mu_f)**(0.8) * Pr_f**(0.4) * k_f / D #[W/m^2-K]
-    def ShahCondensation(x):
-        return h_L * ((1 - x)**(0.8) + (3.8 * x**(0.76) * (1 - x)**(0.04)) / (Pstar**(0.38)) )
+    heatTransferCoeffLiq = 0.023 * (massFlux*D/mu_f)**(0.8) * prandtlNumLiq**(0.4) * k_f / D #[W/m^2-K]
+    def ShahCondensation(quality):
+        return heatTransferCoeffLiq * ((1 - quality)**(0.8) + (3.8 * quality**(0.76) * (1 - quality)**(0.04)) / (Pstar**(0.38)) )
 
     if not xMin==xMax:
         return quad(ShahCondensation,xMin,xMax)[0]/(xMax-xMin)
@@ -709,6 +763,7 @@ def PettersonSupercritical(temperature, tempWall, fluid, massFluxAverage, diamOu
     viscosityWall = fluid.calculateViscosity(ThermoProps.PT, pressure, tempWall)
     specificHeatWall = fluid.calculateHeatCapacity(ThermoProps.PT, pressure, tempWall)
     conductivityWall = fluid.calculateConductivity(ThermoProps.PT, pressure, tempWall)
+    densityWall = fluid.calculateDensity(ThermoProps.PT, pressure, tempWall)
     prandtlNumWall = FluidMechanics.calculatePrandtlNumber(specificHeatWall, viscosityWall,
                                                                   conductivityWall)
 
@@ -744,6 +799,7 @@ def PettersonSupercritical(temperature, tempWall, fluid, massFluxAverage, diamOu
         M = 0.001 #[kg/J]
         K = 0.00041 #[kg/J]
         specificHeatAvg = (enthalpy - enthalpyWall)/(temperature - tempWall)
+        prandtlNumAvg = specificHeatAvg*viscosity/conductivity
         nConstant = 0.66 if specificHeatAvg/specificHeatWall <= 1 else 0.9
         n = nConstant - K*(heatFluxWall/massFluxAverage)
         frictionFactorDefault = (0.79*np.log(reynoldsNum) - 1.64)**(-2)
@@ -751,7 +807,7 @@ def PettersonSupercritical(temperature, tempWall, fluid, massFluxAverage, diamOu
         grashofNum = FluidMechanics.calculateGrashofNumber(isobaricExpansionCoeff, tempWall,
                                             temperature, diameterHydraulic, viscosity/density)
         # grashof number/reynolds number**2 = Richardson number (Ri)
-        # Ri << 1: can ignore forced convection
+        # Ri >> 1: can ignore forced convection
         # Ri ~= 1: mixture of free and forced convection
         # Ri << 1: can ignore free convection
         if grashofNum/reynoldsNum**2 < 5e-4:
@@ -763,7 +819,8 @@ def PettersonSupercritical(temperature, tempWall, fluid, massFluxAverage, diamOu
             frictionFactor = frictionFactorDefault
         nusseltNumWall = FluidMechanics.calculateNusseltNumber(frictionFactorDefault,
                             reynoldsNumWall + 1000, prandtlNumWall, frictionFactor=frictionFactor)
-        nusseltNum = nusseltNumWall*(1 - M*heatFluxWall/massFluxAverage)*(specificHeatAvg/specificHeatWall)**n
+        # nusseltNum = nusseltNumWall*(1 - M*heatFluxWall/massFluxAverage)*(specificHeatAvg/specificHeatWall)**n
+        nusseltNum = 0.33*(reynoldsNum**0.804)*(prandtlNumAvg**0.1)*((densityWall/density)**-0.1)*((specificHeatAvg/specificHeat)**0.093)*(grashofNum/reynoldsNum**2.7)**0.1
     heatTransferCoeff = conductivity*nusseltNum/diameterHydraulic #[W/m^2-K]
     for localKey, localVal in locals().items():
         if isinstance(localVal, (str, dict, list)):
@@ -819,8 +876,30 @@ def Cooper_PoolBoiling(fluid, surfaceRoughness, qFlux, apparatus):
     examination using reduced properties. Advances in Heat Transfer. Vol. 16,
     Eds. J.P. Harnett and T.F. Irvine Jr., Academic Press, Orlando, Florida. pp 157-239"
 
-    Rp : surface roughness in microns
+    Parameters
+    ----------
+    fluid : Fluid
+        fluid.
+    surfaceRoughness : float
+        surface roughness parameter.
+    qFlux : float
+        heat flux.
+    apparatus : string
+        apparatus the fluid is in (e.g. condenser, HEX).
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
     """
+    # """
+    # Cooper M.G., 1984, "Heat flow rates in saturated nucleate boiling - A wide-ranging
+    # examination using reduced properties. Advances in Heat Transfer. Vol. 16,
+    # Eds. J.P. Harnett and T.F. Irvine Jr., Academic Press, Orlando, Florida. pp 157-239"
+
+    # Rp : surface roughness in microns
+    # """
     pressureCorrected = fluid.fluidApparatiProps[apparatus].pressureIn/fluid.pressureCritical
     return 55*pressureCorrected**(0.12-0.2*np.log10(surfaceRoughness))*\
         (-np.log10(pressureCorrected))**(-0.55)*qFlux**(0.67)*fluid.massMolar**(-0.5)
@@ -835,28 +914,28 @@ def KandlikarPHE(fluid,xmean,massFlux,D,q,tBubble,tDew):
     AS.update(CP.QT_INPUTS,0.0,tBubble)
     rhoL = AS.rhomass() #[kg/m^3]
     mu_f = AS.viscosity() #[Pa-s OR kg/m-s]
-    cp_f = AS.cpmass() #[J/kg-K]
+    heatCapacityLiq = AS.cpmass() #[J/kg-K]
     k_f = AS.conductivity() #[W/m/K]
-    h_L = AS.hmass() #[J/kg]
+    heatTransferCoeffLiq = AS.hmass() #[J/kg]
 
     AS.update(CP.QT_INPUTS,1.0,tDew)
     rhoG = AS.rhomass() #[kg/m^3]
     h_G = AS.hmass() #[J/kg]
 
-    Pr_f = cp_f * mu_f / k_f #[-]
+    prandtlNumLiq = heatCapacityLiq * mu_f / k_f #[-]
 
-    h_LG = h_G-h_L #[J/kg]
-    alpha_L = 0.023 * (massFlux*D/mu_f)**(0.8) * Pr_f**(0.4) * k_f / D #[W/m^2-K]
+    h_LG = h_G-heatTransferCoeffLiq #[J/kg]
+    alpha_L = 0.023 * (massFlux*D/mu_f)**(0.8) * prandtlNumLiq**(0.4) * k_f / D #[W/m^2-K]
     Co=(rhoG/rhoL)**(0.5)*((1-xmean)/xmean)**(0.8)
     Bo=q/(massFlux*h_LG)
 #    E_CB=0.512
 #    E_NB=0.338
-#    F_fl=1.0
-    #alpha_r=(2.312*Co**(-0.3)*E_CB+667.3*Bo**(2.8)*F_fl*E_NB)*(1-xmean)**(0.003)*alpha_L
+#    forsterF1=1.0
+    #alpha_r=(2.312*Co**(-0.3)*E_CB+667.3*Bo**(2.8)*forsterF1*E_NB)*(1-xmean)**(0.003)*alpha_L
     alpha_r=1.055*(1.056*Co**(-0.4)+1.02*Bo**(0.9))*xmean**(-0.12)*alpha_L**(0.98)
     return alpha_r
 
-def Bertsch_MC(x,fluid,massFlux,diameterHydraulic,q_flux,L,tBubble,tDew):
+def Bertsch_MC(quality,fluid,massFlux,diameterHydraulic,heatFlux,L,tBubble,tDew):
     """
     This function return the heat transfer coefficient for two phase fluid
     inside Micro-channel tube
@@ -881,7 +960,7 @@ def Bertsch_MC(x,fluid,massFlux,diameterHydraulic,q_flux,L,tBubble,tDew):
     pr=pressure/pc
     M=AS.molar_mass() #molar mass [kg/mol]
 
-    AS.update(CP.PQ_INPUTS,pressure,x)
+    AS.update(CP.PQ_INPUTS,pressure,quality)
     sig = AS.surface_tension() #surface tension [N/m]
 
     #if Ref=='R290':
@@ -895,15 +974,15 @@ def Bertsch_MC(x,fluid,massFlux,diameterHydraulic,q_flux,L,tBubble,tDew):
     Pr_L=cp_L*mu_G/k_L
     Pr_G=cp_G*mu_G/k_G
 
-    h_nb=55*(pr)**(0.12)*(-np.log10(pr))**(-0.55)*M**(-0.5)*q_flux**(0.67)
+    h_nb=55*(pr)**(0.12)*(-np.log10(pr))**(-0.55)*M**(-0.5)*heatFlux**(0.67)
     h_conv_l=(3.66+(0.0668*diameterHydraulic/L*Re_L*Pr_L)/(1+0.04*(diameterHydraulic/L*Re_L*Pr_L)**(2.0/3.0)))*k_L/diameterHydraulic
     h_conv_g=(3.66+(0.0668*diameterHydraulic/L*Re_G*Pr_G)/(1+0.04*(diameterHydraulic/L*Re_G*Pr_G)**(2.0/3.0)))*k_G/diameterHydraulic
-    h_conv_tp=h_conv_l*(1-x)+h_conv_g*x
+    h_conv_tp=h_conv_l*(1-quality)+h_conv_g*quality
     Co=np.sqrt(sig/(g*(rho_L-rho_G)*diameterHydraulic**2))
-    h_TP=h_nb*(1-x)+h_conv_tp*(1.0+80.0*(x**2-x**6)*np.exp(-0.6*Co))
+    h_TP=h_nb*(1-quality)+h_conv_tp*(1.0+80.0*(quality**2-quality**6)*np.exp(-0.6*Co))
     return h_TP
 
-def Bertsch_MC_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,q_flux,L,TsatL,TsatV):
+def Bertsch_MC_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,heatFlux,L,TsatL,TsatV):
     '''
     Returns the average heat transfer coefficient
     between qualities of xMin and xMax.
@@ -911,8 +990,8 @@ def Bertsch_MC_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,q_flux,L,TsatL
     '''
     AS = fluid.abstractState.abstractState
     if not xMin==xMax:
-        return quad(Bertsch_MC,xMin,xMax,args=(AS,massFlux,diameterHydraulic,q_flux,L,TsatL,TsatV))[0]/(xMax-xMin)
-    return Bertsch_MC(xMin,AS,massFlux,diameterHydraulic,q_flux,L,TsatL,TsatV)
+        return quad(Bertsch_MC,xMin,xMax,args=(AS,massFlux,diameterHydraulic,heatFlux,L,TsatL,TsatV))[0]/(xMax-xMin)
+    return Bertsch_MC(xMin,AS,massFlux,diameterHydraulic,heatFlux,L,TsatL,TsatV)
 
 def f_h_1phase_MicroTube(massFlux, diameterHydraulic, temperature, pressure, fluid, Phase='Single'):
     """
@@ -948,7 +1027,7 @@ def KM_Cond_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
     between qualities of xMin and xMax.
     for Kim&Mudawar two-phase condensation in mico-channel HX
 
-    To obtain the pressure gradient for a given value of x, pass it in as xMin and xMax
+    To obtain the pressure gradient for a given value of quality, pass it in as xMin and xMax
 
     Required parameters:
     * xMin : The minimum quality for the range [-]
@@ -966,13 +1045,13 @@ def KM_Cond_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
       in efficiency
     """
     AS = fluid.abstractState.abstractState
-    def KMFunc(x):
-        dpdz, h = Kim_Mudawar_condensing_DPDZ_h(AS,massFlux,diameterHydraulic,x,tBubble,tDew,pressure,beta,coeff,satTransport)
+    def KMFunc(quality):
+        dpdz, h = Kim_Mudawar_condensing_DPDZ_h(AS,massFlux,diameterHydraulic,quality,tBubble,tDew,pressure,beta,coeff,satTransport)
         return dpdz , h
 
     ## Use Simpson's Rule to calculate the average pressure gradient
     ## Can't use adapative quadrature since function is not sufficiently smooth
-    ## Not clear why not sufficiently smooth at x>0.9
+    ## Not clear why not sufficiently smooth at quality>0.9
     if xMin==xMax:
         return KMFunc(xMin)
     #Calculate the tranport properties once
@@ -980,7 +1059,7 @@ def KM_Cond_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
     AS.update(CP.QT_INPUTS,0.0,tBubble)
     satTransport['rho_f']=AS.rhomass() #[kg/m^3]
     satTransport['mu_f']=AS.viscosity() #[Pa-s OR kg/m-s]
-    satTransport['cp_f']=AS.cpmass() #[J/kg-K]
+    satTransport['heatCapacityLiq']=AS.cpmass() #[J/kg-K]
     satTransport['k_f']=AS.conductivity() #[W/m-K]
     AS.update(CP.QT_INPUTS,1.0,tDew)
     satTransport['rho_g']=AS.rhomass() #[kg/m^3]
@@ -1000,7 +1079,7 @@ def KM_Cond_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
     #Use Simpson's rule to carry out numerical integration to get average DP and average h
     return -simps(DP,xx)/(xMax-xMin), simps(h,xx)/(xMax-xMin)
 
-def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, tDew, pressure, beta, coeff=None, satTransport=None):
+def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, quality, tBubble, tDew, pressure, beta, coeff=None, satTransport=None):
     """
     This function return the pressure gradient and heat transfer coefficient for
     two phase fluid inside Micro-channel tube while CONDENSATION
@@ -1014,14 +1093,14 @@ def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble
     AS = fluid.abstractState.abstractState
     #Convert the quality, which might come in as a single numpy float value, to a float
     #With the conversion, >20x speedup in the lockhartMartinelli function, not clear why
-    x=float(x)
+    quality=float(quality)
 
     if satTransport is None:
         # Calculate Necessary saturation properties
         AS.update(CP.QT_INPUTS,0.0,tBubble)
         rho_f=AS.rhomass() #[kg/m^3]
         mu_f=AS.viscosity() #[Pa-s OR kg/m-s]
-        cp_f=AS.cpmass() #[J/kg-K]
+        heatCapacityLiq=AS.cpmass() #[J/kg-K]
         k_f=AS.conductivity() #[W/m-K]
         AS.update(CP.QT_INPUTS,1.0,tDew)
         rho_g=AS.rhomass() #[kg/m^3]
@@ -1032,19 +1111,19 @@ def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble
         rho_g=satTransport['rho_g']
         mu_f=satTransport['mu_f']
         mu_g=satTransport['mu_g']
-        cp_f=satTransport['cp_f']
+        heatCapacityLiq=satTransport['heatCapacityLiq']
         k_f=satTransport['k_f']
 
-    AS.update(CP.PQ_INPUTS,pressure,x)
+    AS.update(CP.PQ_INPUTS,pressure,quality)
     sigma=AS.surface_tension() #surface tesnion [N/m]
 
-    Pr_f = cp_f * mu_f / k_f #[-]
+    prandtlNumLiq = heatCapacityLiq * mu_f / k_f #[-]
 
-    reynoldsNumLiq = massFlux*(1-x)*diameterHydraulic/mu_f
-    reynoldsNumVap = massFlux*x*diameterHydraulic/mu_g
+    reynoldsNumLiq = massFlux*(1-quality)*diameterHydraulic/mu_f
+    reynoldsNumVap = massFlux*quality*diameterHydraulic/mu_g
 
 
-    if x==1: #No liquid
+    if quality==1: #No liquid
         frictionFactorLiq = 0 #Just to be ok until next step
     elif reynoldsNumLiq<2000: #Laminar
         frictionFactorLiq = 16.0/reynoldsNumLiq
@@ -1056,7 +1135,7 @@ def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble
     else: #Transient
         frictionFactorLiq = 0.079*pow(reynoldsNumLiq,-0.25)
 
-    if x==0: #No gas
+    if quality==0: #No gas
         frictionFactorVap = 0 #Just to be ok until next step
     elif reynoldsNumVap<2000: #Laminar
         frictionFactorVap=16.0/reynoldsNumVap
@@ -1071,17 +1150,17 @@ def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble
     Re_fo = massFlux*diameterHydraulic/mu_f
     Su_go = rho_g*sigma*diameterHydraulic/pow(mu_g,2)
 
-    dpdz_f = 2*frictionFactorLiq/rho_f*pow(massFlux*(1-x),2)/diameterHydraulic
-    dpdz_g = 2*frictionFactorVap/rho_g*pow(massFlux*x,2)/diameterHydraulic
+    dpdz_f = 2*frictionFactorLiq/rho_f*pow(massFlux*(1-quality),2)/diameterHydraulic
+    dpdz_g = 2*frictionFactorVap/rho_g*pow(massFlux*quality,2)/diameterHydraulic
 
-    if x<=0:
+    if quality<=0:
         # Entirely liquid
         dpdz = dpdz_f
         AS.update(CP.QT_INPUTS,0.0,tBubble)
         psat = AS.p() #pressure [Pa]
         h = f_h_1phase_MicroTube(massFlux, diameterHydraulic, tBubble, psat, AS, Phase='SatLiq')[1]
         return dpdz, h
-    if x>=1:
+    if quality>=1:
         #Entirely vapor
         dpdz = dpdz_g
         AS.update(CP.QT_INPUTS,1.0,tDew)
@@ -1117,7 +1196,7 @@ def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble
     #Use calculated Lockhart-Martinelli parameter
     Xtt = paramLM
     # Simplified Lockhart-Martinelli paramter from Kim & Mudawar(2013) "Universal approach to predict HTC for condensing mini/micro-channel flow"
-    #Xtt = pow(mu_f/mu_g,0.1) * pow((1-x)/x,0.9) * pow(rho_g/rho_f,0.5)
+    #Xtt = pow(mu_f/mu_g,0.1) * pow((1-quality)/quality,0.9) * pow(rho_g/rho_f,0.5)
 
     # Modified Weber number
     if reynoldsNumLiq <= 1250:
@@ -1128,9 +1207,9 @@ def Kim_Mudawar_condensing_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble
 
     # Condensation Heat transfer coefficient
     if We_star > 7*Xtt**0.2: ##for annual flow (smooth-annular, wavy-annular, transition)
-        h = k_f/diameterHydraulic * 0.048 * pow(reynoldsNumLiq,0.69) * pow(Pr_f,0.34) * np.sqrt(phi_g_square) / Xtt
+        h = k_f/diameterHydraulic * 0.048 * pow(reynoldsNumLiq,0.69) * pow(prandtlNumLiq,0.34) * np.sqrt(phi_g_square) / Xtt
     else: ##for slug and bubbly flow
-        h = k_f/diameterHydraulic*pow((0.048*pow(reynoldsNumLiq,0.69)*pow(Pr_f,0.34)*np.sqrt(phi_g_square)/Xtt)**2 + \
+        h = k_f/diameterHydraulic*pow((0.048*pow(reynoldsNumLiq,0.69)*pow(prandtlNumLiq,0.34)*np.sqrt(phi_g_square)/Xtt)**2 + \
                        (3.2e-7*pow(reynoldsNumLiq,-0.38)*pow(Su_go,1.39))**2,0.5)
 
     return dpdz, h
@@ -1141,7 +1220,7 @@ def KM_Evap_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
     between qualities of xMin and xMax.
     for Kim&Mudawar two-phase evaporation in mico-channel HX
 
-    To obtain the pressure gradient for a given value of x, pass it in as xMin and xMax
+    To obtain the pressure gradient for a given value of quality, pass it in as xMin and xMax
 
     Required parameters:
     * xMin : The minimum quality for the range [-]
@@ -1162,13 +1241,13 @@ def KM_Evap_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
       in efficiency
     """
     AS = fluid.abstractState.abstractState
-    def KMFunc(x):
-        dpdz, h = Kim_Mudawar_boiling_DPDZ_h(AS,massFlux,diameterHydraulic,x,tBubble,tDew,pressure,beta,q_fluxH,PH_PF,coeff,satTransport)
+    def KMFunc(quality):
+        dpdz, h = Kim_Mudawar_boiling_DPDZ_h(AS,massFlux,diameterHydraulic,quality,tBubble,tDew,pressure,beta,q_fluxH,PH_PF,coeff,satTransport)
         return dpdz , h
 
     ## Use Simpson's Rule to calculate the average pressure gradient
     ## Can't use adapative quadrature since function is not sufficiently smooth
-    ## Not clear why not sufficiently smooth at x>0.9
+    ## Not clear why not sufficiently smooth at quality>0.9
     if xMin==xMax:
         return KMFunc(xMin)
     #Calculate the tranport properties once
@@ -1177,7 +1256,7 @@ def KM_Evap_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
     satTransport['rho_f']=AS.rhomass() #[kg/m^3]
     satTransport['mu_f']=AS.viscosity() #[Pa-s OR kg/m-s]
     h_f=AS.hmass() #[J/kg]
-    satTransport['cp_f']=AS.cpmass() #[J/kg-K]
+    satTransport['heatCapacityLiq']=AS.cpmass() #[J/kg-K]
     satTransport['k_f']=AS.conductivity() #[W/m-K]
     AS.update(CP.QT_INPUTS,1.0,tDew)
     satTransport['rho_g']=AS.rhomass() #[kg/m^3]
@@ -1199,7 +1278,7 @@ def KM_Evap_Average(xMin,xMax,fluid,massFlux,diameterHydraulic,tBubble,tDew,pres
     #Use Simpson's rule to carry out numerical integration to get average DP and average h
     return -simps(DP,xx)/(xMax-xMin), simps(h,xx)/(xMax-xMin)
 
-def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, tDew, pressure, beta, q_fluxH, PH_PF=1,
+def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, quality, tBubble, tDew, pressure, beta, q_fluxH, PH_PF=1,
                                coeff=None, satTransport=None):
     """
     This function return the pressure gradient and heat transfer coefficient for
@@ -1213,7 +1292,7 @@ def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, t
     """
     #Convert the quality, which might come in as a single numpy float value, to a float
     #With the conversion, >20x speedup in the lockhartMartinelli function, not clear why
-    x=float(x)
+    quality=float(quality)
 
     AS = fluid.abstractState.abstractState
     if satTransport is None:
@@ -1222,7 +1301,7 @@ def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, t
         rho_f=AS.rhomass() #[kg/m^3]
         mu_f=AS.viscosity() #[Pa-s OR kg/m-s]
         h_f=AS.hmass() #[J/kg]
-        cp_f=AS.cpmass() #[J/kg-K]
+        heatCapacityLiq=AS.cpmass() #[J/kg-K]
         k_f=AS.conductivity() #[W/m-K]
         AS.update(CP.QT_INPUTS,1.0,tDew)
         rho_g=AS.rhomass() #[kg/m^3]
@@ -1236,19 +1315,19 @@ def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, t
         mu_f=satTransport['mu_f']
         mu_g=satTransport['mu_g']
         h_fg=satTransport['h_fg']
-        cp_f=satTransport['cp_f']
+        heatCapacityLiq=satTransport['heatCapacityLiq']
         k_f=satTransport['k_f']
 
     pc=AS.p_critical() #critical pressure [Pa]
     pr=pressure/pc #reducred pressure [-]
-    AS.update(CP.PQ_INPUTS,pressure,x)
+    AS.update(CP.PQ_INPUTS,pressure,quality)
     sigma = AS.surface_tension() #surface tesnion [N/m]
 
-    reynoldsNumLiq = massFlux*(1-x)*diameterHydraulic/mu_f
-    reynoldsNumVap = massFlux*x*diameterHydraulic/mu_g
-    Pr_f = cp_f*mu_f/k_f
+    reynoldsNumLiq = massFlux*(1-quality)*diameterHydraulic/mu_f
+    reynoldsNumVap = massFlux*quality*diameterHydraulic/mu_g
+    prandtlNumLiq = heatCapacityLiq*mu_f/k_f
 
-    if x==1: #No liquid
+    if quality==1: #No liquid
         frictionFactorLiq = 0 #Just to be ok until next step
     elif reynoldsNumLiq<2000: #Laminar
         frictionFactorLiq = 16.0/reynoldsNumLiq
@@ -1260,7 +1339,7 @@ def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, t
     else: #Transient
         frictionFactorLiq = 0.079*pow(reynoldsNumLiq,-0.25)
 
-    if x==0: #No gas
+    if quality==0: #No gas
         frictionFactorVap = 0 #Just to be ok until next step
     elif reynoldsNumVap<2000: #Laminar
         frictionFactorVap=16.0/reynoldsNumVap
@@ -1275,17 +1354,17 @@ def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, t
     Re_fo = massFlux*diameterHydraulic/mu_f
     Su_go = rho_g*sigma*diameterHydraulic/pow(mu_g,2)
 
-    dpdz_f = 2*frictionFactorLiq/rho_f*pow(massFlux*(1-x),2)/diameterHydraulic
-    dpdz_g = 2*frictionFactorVap/rho_g*pow(massFlux*x,2)/diameterHydraulic
+    dpdz_f = 2*frictionFactorLiq/rho_f*pow(massFlux*(1-quality),2)/diameterHydraulic
+    dpdz_g = 2*frictionFactorVap/rho_g*pow(massFlux*quality,2)/diameterHydraulic
 
-    if x<=0:
+    if quality<=0:
         # Entirely liquid
         dpdz = dpdz_f
         AS.update(CP.QT_INPUTS,0.0,tBubble)
         psat = AS.p() #pressure [Pa]
         h = f_h_1phase_MicroTube(massFlux, diameterHydraulic, tBubble, psat, AS, Phase='SatLiq')[1]
         return dpdz, h
-    if x>=1:
+    if quality>=1:
         #Entirely vapor
         dpdz = dpdz_g
         AS.update(CP.QT_INPUTS,1.0,tDew)
@@ -1330,13 +1409,13 @@ def Kim_Mudawar_boiling_DPDZ_h(fluid, massFlux, diameterHydraulic, x, tBubble, t
     #Use calculated Lockhart-Martinelli parameter
     Xtt = paramLM
     #Simplified X_tt from Kim and Mudawar(2013) "Universal approach to predicting .... Part II. Two-phase heat transfer coefficient"
-    #Xtt = pow(mu_f/mu_g,0.1)*pow((1-x)/x,0.9)*pow(rho_g/rho_f,0.5)
+    #Xtt = pow(mu_f/mu_g,0.1)*pow((1-quality)/quality,0.9)*pow(rho_g/rho_f,0.5)
 
     #Pre-dryout saturated flow boiling Heat transfer coefficient
-    h_nb = (2345*pow(Bo*PH_PF,0.7)*pow(pr,0.38)*pow(1-x,-0.51))*(0.023*pow(reynoldsNumLiq,0.8)*\
-                                                                 pow(Pr_f,0.4)*k_f/diameterHydraulic)
+    h_nb = (2345*pow(Bo*PH_PF,0.7)*pow(pr,0.38)*pow(1-quality,-0.51))*(0.023*pow(reynoldsNumLiq,0.8)*\
+                                                                 pow(prandtlNumLiq,0.4)*k_f/diameterHydraulic)
     h_cb = (5.2*pow(Bo*PH_PF,0.08)*pow(We_fo,-0.54) + 3.5*pow(1/Xtt,0.94)*pow(rho_g/rho_f,0.25))*\
-        (0.023*pow(reynoldsNumLiq,0.8)*pow(Pr_f,0.4)*k_f/diameterHydraulic)
+        (0.023*pow(reynoldsNumLiq,0.8)*pow(prandtlNumLiq,0.4)*k_f/diameterHydraulic)
     h = pow(h_nb**2 +h_cb**2,0.5)
 
     return dpdz, h

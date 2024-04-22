@@ -1,33 +1,37 @@
 from __future__ import division, print_function, absolute_import
-from ACHP.Compressor import CompressorClass
-import CoolProp as CP
-from CoolProp.CoolProp import PropsSI
+from ACHP.models.Compressor import Compressor
+from ACHP.models.Fluid import Fluid
+from ACHP.wrappers.CoolPropWrapper import PropsSIWrapper
 
-Ref = 'R134a'
-Backend = 'HEOS' #choose between: 'HEOS','TTSE&HEOS','BICUBIC&HEOS','REFPROP','SRK','PR'
-AS = CP.AbstractState(Backend, Ref)
-    
-kwds={
-      'M':[217.3163128,5.094492028,-0.593170311,4.38E-02,-2.14E-02,1.04E-02,7.90E-05,-5.73E-05,1.79E-04,-8.08E-05],
-      'P':[-561.3615705,-15.62601841,46.92506685,-0.217949552,0.435062616,-0.442400826,2.25E-04,2.37E-03,-3.32E-03,2.50E-03],
-      'Ref':Ref,
-      'Tin_r':280,
-      'pin_r':PropsSI('P','T',279,'Q',1,Ref),
-      'pout_r':PropsSI('P','T',315,'Q',1,Ref),
-      'fp':0.15, #Fraction of electrical power lost as heat to ambient
-      'Vdot_ratio': 1.0, #Displacement Scale factor
-      'shell_pressure': 'low-pressure',
-      'Oil': 'POE32',
-      'V_oil_sump': 0.0,
-      'AS':AS
-      }
-Comp=CompressorClass(**kwds)
-Comp.Calculate()
-
-print ('Electrical power is: ' + str(Comp.W) + ' W')
-print ('Actual mass flow rate is: ' + str(Comp.mdot_r) + ' kg/s')
-print ('Isentropic Efficiency is: ' + str(Comp.eta_oi))
-print ('Discharge Refrigerant Temperature is: ' + str(Comp.Tout_r) + ' K')
+REFRIGERANT = 'R134a'
+BACKEND = 'HEOS' #choose between: 'HEOS','TTSE&HEOS','BICUBIC&HEOS','REFPROP','SRK','PR'
+ref = Fluid(REFRIGERANT, BACKEND)
+propsSI = PropsSIWrapper()
+for j in range(1):
+    kwds={
+          'massFlowCoeffs':[217.3163128,5.094492028,-0.593170311,4.38E-02,-2.14E-02,
+                            1.04E-02,7.90E-05,-5.73E-05,1.79E-04,-8.08E-05],
+          'powerCoeffs':[-561.3615705,-15.62601841,46.92506685,-0.217949552,0.435062616,
+                         -0.442400826,2.25E-04,2.37E-03,-3.32E-03,2.50E-03],
+          'refrigerant': ref,
+          'tempInR':280,
+          'pressureInR':propsSI.calculatePressureFromTandQ(REFRIGERANT, 279,1),
+          'pressureOutR':propsSI.calculatePressureFromTandQ(REFRIGERANT, 315,1),
+          'ambientPowerLoss':0.15, #Fraction of electrical power lost as heat to ambient
+          'vDotRatio': 1.0, #Displacement Scale factor
+          'shellPressure': 'low-pressure',
+          'oil': 'POE32',
+          'volumeOilSump': 0.0,
+          }
+Comp = Compressor(**kwds)
+Comp.calculate()
+print ('Electrical Power:', Comp.power,'W')
+print ('Flow rate:',Comp.vDotPumped,'m^3/s')
+print ('Heat loss rate:', Comp.ambientHeatLoss, 'W')
+print ('Refrigerant dissolved in oil sump:', Comp.refrigerantChangeOilSump,'kg')
+print ('Actual mass flow rate is: ' + str(Comp.massFlowR) + ' kg/s')
+print ('Isentropic Efficiency is: ' + str(Comp.overallIsentropicEfficiency))
+print ('Discharge Refrigerant Temperature is: ' + str(Comp.tempOutR) + ' K')
 print (' ')
 
 '''to print all the output, uncomment the next 2 lines'''
