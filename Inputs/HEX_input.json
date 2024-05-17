@@ -1,0 +1,98 @@
+{"inputs": [
+        {
+            "testName": "",
+            "hot":
+                {
+                    "fluidName": "",
+                    "pressureIn":
+                        {
+                            "values":
+                                [
+                                ],
+                            "unit": ""
+                        },
+                    "h_or_T":
+                        {
+                            "values":
+                                [
+                                ],
+                            "unit": "",
+                            "enthalpyIn": true
+                        },
+                    "massFlowIn":
+                        {
+                            "values":
+                                [
+                                ],
+                            "unit": ""
+                        }
+                },
+                "cold":
+                    {
+                        "fluidName": "",
+                        "pressureIn":
+                            {
+                                "values":
+                                    [
+                                    ],
+                                "unit": ""
+                            },
+                        "h_or_T":
+                            {
+                                "values":
+                                    [
+                                    ],
+                                "unit": "",
+                                "enthalpyIn": true
+                            },
+                        "massFlowIn":
+                            {
+                                "values":
+                                    [
+                                    ],
+                                "unit": ""
+                            }
+                    },
+                "HEX":
+                    {
+                        "type": "",
+                        "HEX_values":
+                            {
+                                "Coaxial-HEX":
+                                    {
+                                        "innerTubeInnerDiameter": null,
+                                        "innerTubeOuterDiameter": null,
+                                        "outerTubeInnerDiameter": null,
+                                        "length": null,
+                                        "conductivity": null
+                                    },
+                                "Plate-HEX":
+                                    {
+                                        "centerlineDistanceShort": null,
+                                        "centerlineDistanceLong": null,
+                                        "numPlates": null,
+                                        "thickness": null,
+                                        "amplitude": null,
+                                        "wavelength": null,
+                                        "inclinationAngle": null,
+                                        "moreChannels": null,
+                                        "volumeChannelSingle": null,
+                                        "conductivity": null
+                                    }
+                            }
+                    },
+                "values":
+                    {
+                        "x-axis":
+                            [
+                            ],
+                        "y-axis":
+                            [
+                            ],
+                        "to_be_extracted":
+                            [
+                            ]
+                    }
+        }
+    ]
+}

@@ -41,32 +41,6 @@ class TestGetTempDensityPhaseFromPandH:
                                         dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=100000, hexType=HEXType.PLATE, expected='TwoPhase'),#h < hsatV && h > hsatL
                                         dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=94191.1371077584, hexType=HEXType.PLATE, expected='TwoPhase'),#h = hsatL
                                         dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=90000, hexType=HEXType.PLATE, expected='Subcooled')],#h < hsatL
-            "test_getTempDensityPhaseFromPandHGetsTemp": [dict(fluid=Fluid("MEG", "IncompressibleBackend", massFraction=0.50), pressure=700000, enthalpy=22784.029047293378, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected=299.8508),#backend has 'incomp'
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=319892.71816103684, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=314.3),#p > pCrit && t > tcrit
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=274856.22998397355, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=304.1282),#p > pCrit && t = tcrit
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=195530.26737918807, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=273.15),#p > pCrit && t < tcrit
-                                        # bug calculating at p=pCrit
-                                        # dict(fluid=Fluid("R744", "HEOS"), pressure=7377300.0, enthalpy=426260.21486963786, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected=314.3),#p = pCrit && t > tcrit
-                                        # dict(fluid=Fluid("R744", "HEOS"), pressure=7377300.0, enthalpy=329138.0227391727, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected=304.1282),#p = pCrit && t = tcrit
-                                        # dict(fluid=Fluid("R744", "HEOS"), pressure=7377300.0, enthalpy=196834.08085025015, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected=273.15),#p = pCrit && t < tcrit
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=450000, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=242.1709),#h > hsatV
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=432872.2974300893, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=225.1218),#h = hsatV
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=100000, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=223.8039),#hsatL < h < hsatV
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=94191.1371077584, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=223.7809),#h = hsatL
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=90000, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=221.6530)],#h < hsatL
-            "test_getTempDensityPhaseFromPandHGetsDensity": [dict(fluid=Fluid("MEG", "IncompressibleBackend", massFraction=0.50), pressure=700000, enthalpy=22784.029047293378, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected=1061.2631),#backend has 'incomp'
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=319892.71816103684, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=603.0474),#p > pCrit && t > tcrit
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=274856.22998397355, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=761.2431),#p > pCrit && t = tcrit
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=195530.26737918807, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=974.0506),#p > pCrit && t < tcrit
-                                        # bug calculating at p=pCrit
-                                        # dict(fluid=Fluid("R744", "HEOS"), pressure=7377300.0, enthalpy=426260.21486963786, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected='Supercritical'),#p = pCrit && t > tcrit
-                                        # dict(fluid=Fluid("R744", "HEOS"), pressure=7377300.0, enthalpy=329138.0227391727, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected='Supercritical'),#p = pCrit && t = tcrit
-                                        # dict(fluid=Fluid("R744", "HEOS"), pressure=7377300.0, enthalpy=196834.08085025015, tBubble=235, tDew=225, rhosatL=None, rhosatV=None, expected='Supercrit_liq'),#p = pCrit && t < tcrit
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=450000, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=16.5154),#h > hsatV
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=432872.2974300893, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=19.3762),#h = hsatV
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=100000, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=575.3125),#h < hsatV && h > hsatL
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=94191.1371077584, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=1152.2187),#h = hsatL
-                                        dict(fluid=Fluid("R744", "HEOS"), pressure=700000, enthalpy=90000, tBubble=223.78094125730473, tDew=225.123456, rhosatL=None, rhosatV=None, expected=1160.2212)],#h < hsatL
             "test_getTempFromPandH": [dict(fluid=Fluid("MEG", "IncompressibleBackend", massFraction=0.50), pressure=700000, enthalpy=22784.029047293378, hexType=HEXType.PLATE, expected=299.8508),#backend has 'incomp'
                                         dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=319892.71816103684, hexType=HEXType.PLATE, expected=314.3),#p > pCrit && t > tcrit
                                         dict(fluid=Fluid("R744", "HEOS"), pressure=10000000.0, enthalpy=274856.22998397355, hexType=HEXType.PLATE, expected=304.1282),#p > pCrit && t = tcrit
@@ -121,11 +95,3 @@ class TestGetTempDensityPhaseFromPandH:
         fluid.fluidApparatiProps[HEXType.PLATE].densitySatLiquid=1152.2186710321578
         actual = getDensityFromPandH(fluid, pressure, enthalpy, hexType)
         assert(round(actual, 4) == expected)
-
-    def test_getTempDensityPhaseFromPandHGetsTemp(self, fluid, pressure, enthalpy, tBubble, tDew, rhosatL, rhosatV, expected):
-        actual = getTempDensityPhaseFromPandH(fluid, pressure, enthalpy, tBubble, tDew, rhosatL, rhosatV)
-        assert(round(actual[0], 4) == expected)
-
-    def test_getTempDensityPhaseFromPandHGetsDensity(self, fluid, pressure, enthalpy, tBubble, tDew, rhosatL, rhosatV, expected):
-        actual = getTempDensityPhaseFromPandH(fluid, pressure, enthalpy, tBubble, tDew, rhosatL, rhosatV)
-        assert(round(actual[1], 4) == expected)

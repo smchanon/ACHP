@@ -6,6 +6,7 @@ Created on Mon Jan  8 11:35:16 2024
 """
 from enum import StrEnum
 from ACHP.wrappers.CoolPropWrapper import AbstractStateWrapper
+from dataclasses import dataclass
 
 class FluidPhase(StrEnum):
     """
@@ -42,6 +43,7 @@ class ThermoProps(StrEnum):
     SU = 'entropy (J/kg/K) and internal energy (J/kg)'
     TU = 'temperature (K) and internal energy (J/kg)'
 
+@dataclass
 class Fluid():
     """
     This class represents a fluid used in the library. It is used to calculate necessary
@@ -54,6 +56,9 @@ class Fluid():
         self.pressureCritical = self.calculateCriticalPressure()
         self.massMolar = self.calculateMassMolar()
         self.fluidApparatiProps = {str: FluidApparatusProps}
+
+    def __str__(self):
+        return self.abstractState.propsSIName
 
     def getMeltingTemperature(self, pressure):
         return self.abstractState.getMeltingTemperature(pressure)

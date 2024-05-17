@@ -4,7 +4,7 @@ from scipy.integrate import quad,simps
 from scipy.constants import g
 import numpy as np
 import CoolProp as CP
-from ACHP.models.Fluid import ThermoProps
+from ACHP.models.Fluid import ThermoProps, Fluid
 
 #Machine precision
 machineEps = np.finfo(np.float64).eps
@@ -174,40 +174,27 @@ class FluidMechanics():
         zeta = 1/rhs**2
         return zeta*reynoldsNum**2/2
 
-# def getTempDensityPhaseFromPandH(fluid,pressure,enthalpy,tBubble,tDew,rhosatL=None,rhosatV=None):
-#     """
-#     Convenience function to find temperature, density, and phase of fluid as a
-#     function of pressure and enthalpy
-#     """
-#     logger = logging.getLogger("Correlations")
-#     logger.debug("fluid %s backend: %s", fluid.name, fluid.backEnd,
-#                  extra={"methodname": "getTempDensityPhaseFromPandH"})
-#     if 'incomp' in fluid.backEnd.lower() or pressure >= fluid.pressureCritical:
-#         temperature = fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
-#         density = fluid.calculateDensity(ThermoProps.HP, enthalpy, pressure)
-#         if 'incomp' in fluid.backEnd.lower():
-#             return temperature, density, 'Subcooled'
-#         if temperature >= fluid.calculateCriticalTemperature():
-#             return temperature, density, 'Supercritical'
-#         return temperature, density, 'Supercrit_liq'
-#     if not rhosatL:
-#         rhosatL = fluid.calculateDensity(ThermoProps.QT, 0.0, tBubble)
-#         rhosatV = fluid.calculateDensity(ThermoProps.QT, 1.0, tDew)
-#     hsatL = fluid.calculateEnthalpy(ThermoProps.DT, rhosatL, tBubble)
-#     hsatV = fluid.calculateEnthalpy(ThermoProps.DT, rhosatV, tDew)
-#     if enthalpy > hsatV or enthalpy < hsatL:
-#         temperature = fluid.calculateTemperature(ThermoProps.HP, enthalpy, pressure)
-#         density = fluid.calculateDensity(ThermoProps.HP, enthalpy, pressure)
-#         if enthalpy > hsatV:
-#             return temperature, density, 'Superheated'
-#         return temperature, density, 'Subcooled'
-#     fraction = (enthalpy - hsatL)/(hsatV - hsatL) #[-]
-#     volumeSpecific = fraction/rhosatV + (1 - fraction)/rhosatL #[m^3/kg]
-#     temperature = fraction*tDew + (1 - fraction)*tBubble #[K]
-#     density = 1/volumeSpecific #[kg/m^3]
-#     return temperature, density, 'TwoPhase'
-
 def getTempFromPandH(fluid, pressure, enthalpy, hexType):
+    """
+    calculates temperature given a fluid, its pressure, and its enthalpy
+
+    Parameters
+    ----------
+    fluid : Fluid
+        fluid whose temperature is to be calculated.
+    pressure : float
+        pressure of the fluid.
+    enthalpy : float
+        enthalpy of the fluid.
+    hexType : HEXType
+        heat exchanger type.
+
+    Returns
+    -------
+    float
+        temperature of the given fluid.
+
+    """
     hsatL = fluid.fluidApparatiProps[hexType].get('enthalpySatLiquid')
     hsatV = fluid.fluidApparatiProps[hexType].get('enthalpySatVapor')
     if 'incomp' in fluid.backEnd.lower() or pressure >= fluid.pressureCritical or enthalpy > hsatV or enthalpy < hsatL:
@@ -218,6 +205,26 @@ def getTempFromPandH(fluid, pressure, enthalpy, hexType):
 
 
 def getDensityFromPandH(fluid, pressure, enthalpy, hexType):
+    """
+    calculates density given a fluid, its pressure, and its enthalpy
+
+    Parameters
+    ----------
+    fluid : Fluid
+        fluid whose density is to be calculated.
+    pressure : float
+        pressure of the fluid.
+    enthalpy : float
+        enthalpy of the fluid.
+    hexType : HEXType
+        heat exchanger type.
+
+    Returns
+    -------
+    float
+        density of the given fluid.
+
+    """
     hsatL = fluid.fluidApparatiProps[hexType].get('enthalpySatLiquid')
     hsatV = fluid.fluidApparatiProps[hexType].get('enthalpySatVapor')
     if 'incomp' in fluid.backEnd.lower() or pressure >= fluid.pressureCritical or enthalpy > hsatV or enthalpy < hsatL:
@@ -229,6 +236,26 @@ def getDensityFromPandH(fluid, pressure, enthalpy, hexType):
 
 
 def getPhaseFromPandH(fluid, pressure, enthalpy, hexType):
+    """
+    determines the phase of a given fluid based on its pressure, and its enthalpy
+
+    Parameters
+    ----------
+    fluid : Fluid
+        fluid whose phase is to be determined.
+    pressure : float
+        pressure of the fluid.
+    enthalpy : float
+        enthalpy of the fluid.
+    hexType : HEXType
+        heat exchanger type.
+
+    Returns
+    -------
+    string
+        phase of the given fluid.
+
+    """
     if 'incomp' in fluid.backEnd.lower():
         return 'Subcooled'
     if pressure >= fluid.pressureCritical:
@@ -242,12 +269,12 @@ def getPhaseFromPandH(fluid, pressure, enthalpy, hexType):
         return 'Subcooled'
     return 'TwoPhase'
 
-def twoPhaseDensity(fluid, xMin, xMax, tDew, tBubble, slipModel='Zivi'):
+def twoPhaseDensity(fluid, xMin, xMax, hexType, slipModel='Zivi'):
     """
     function to obtain the average density in the two-phase region
     """
-    rhog = fluid.calculateDensity(ThermoProps.QT, 1.0, tDew)
-    rhof = fluid.calculateDensity(ThermoProps.QT, 0.0, tBubble)
+    rhog = fluid.calculateDensity(ThermoProps.QT, 1.0, fluid.fluidApparatiProps[hexType].get('tempDew'))
+    rhof = fluid.calculateDensity(ThermoProps.QT, 0.0, fluid.fluidApparatiProps[hexType].get('tempBubble'))
     if slipModel == 'Zivi':
         sVal = pow(rhof/rhog, 0.3333)
     elif slipModel == 'Homogeneous':
@@ -267,7 +294,7 @@ def twoPhaseDensity(fluid, xMin, xMax, tDew, tBubble, slipModel='Zivi'):
         elif xMax <= 0.0:
             alphaAverage = 0.0
         else:
-            alphaAverage =- (cVal*(np.log(((xMax - 1.0)*cVal - xMax)/((xMin - 1.0)*cVal - xMin)) +\
+            alphaAverage = -(cVal*(np.log(((xMax - 1.0)*cVal - xMax)/((xMin - 1.0)*cVal - xMin)) +\
                                    xMax - xMin) - xMax + xMin)/(cVal**2 - 2*cVal + 1)/(xMax - xMin)
     return alphaAverage*rhog + (1 - alphaAverage)*rhof
 
@@ -786,8 +813,8 @@ def PettersonSupercritical(temperature, tempWall, fluid, massFluxAverage, diamOu
                                                                     viscosity, density=density)
         reynoldsNumWall = reynoldsNum #rho_w*velocity*diameterHydraulic/viscosityWall
 
-    if massFluxAverage > 350:
-        #from the Petterson paper
+    if massFluxAverage > 350: #TODO: why > 350?
+        #from the Petterson paper appendix A.1.1
         roughnessRatio = 0 #smooth pipe
         frictionFactor = (-1.8*np.log10(6.9/reynoldsNum + (1/3.7*roughnessRatio)**1.11))**(-2)/4
         nusseltNumMean = FluidMechanics.calculateNusseltNumber(frictionFactor, reynoldsNum, prandtlNum)*\
@@ -799,7 +826,7 @@ def PettersonSupercritical(temperature, tempWall, fluid, massFluxAverage, diamOu
         M = 0.001 #[kg/J]
         K = 0.00041 #[kg/J]
         specificHeatAvg = (enthalpy - enthalpyWall)/(temperature - tempWall)
-        prandtlNumAvg = specificHeatAvg*viscosity/conductivity
+        prandtlNumAvg = FluidMechanics.calculatePrandtlNumber(specificHeatAvg, viscosity, conductivity)
         nConstant = 0.66 if specificHeatAvg/specificHeatWall <= 1 else 0.9
         n = nConstant - K*(heatFluxWall/massFluxAverage)
         frictionFactorDefault = (0.79*np.log(reynoldsNum) - 1.64)**(-2)
@@ -862,9 +889,7 @@ def f_h_1phase_Annulus(massFlow, outerDiam, innerDiam, temperature, pressure, fl
     velocity = massFlow/(area*density)
     reynoldsNum = FluidMechanics.calculateReynoldsNumber(velocity, diameterHydraulic,
                                                                 viscosity, density=density)
-
     darcyFrictionFactor = FluidMechanics.calculateChurchillFrictionFactor(reynoldsNum)
-
     # Heat Transfer coefficient of Gnielinski
     nusseltNum = FluidMechanics.calculateNusseltNumber(darcyFrictionFactor, reynoldsNum, prandtlNum)
     heatTransferCoeff = conductivity*nusseltNum/diameterHydraulic #W/m^2-K
@@ -872,34 +897,30 @@ def f_h_1phase_Annulus(massFlow, outerDiam, innerDiam, temperature, pressure, fl
 
 def Cooper_PoolBoiling(fluid, surfaceRoughness, qFlux, apparatus):
     """
+    Calculates the heat transfer coefficient of a two-phase fluid
+
     Cooper M.G., 1984, "Heat flow rates in saturated nucleate boiling - A wide-ranging
     examination using reduced properties. Advances in Heat Transfer. Vol. 16,
-    Eds. J.P. Harnett and T.F. Irvine Jr., Academic Press, Orlando, Florida. pp 157-239"
+    Eds. J.P. Harnett and T.F. Irvine Jr., Academic Press, Orlando, Florida. pp 157-239",
+    specifically page 204
 
     Parameters
     ----------
     fluid : Fluid
         fluid.
     surfaceRoughness : float
-        surface roughness parameter.
+        surface roughness parameter in microns.
     qFlux : float
-        heat flux.
+        heat flux in W/m^2.
     apparatus : string
         apparatus the fluid is in (e.g. condenser, HEX).
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    heatTransferCoefficient: float
+        heat transfer coefficient in W/(m^2K).
 
     """
-    # """
-    # Cooper M.G., 1984, "Heat flow rates in saturated nucleate boiling - A wide-ranging
-    # examination using reduced properties. Advances in Heat Transfer. Vol. 16,
-    # Eds. J.P. Harnett and T.F. Irvine Jr., Academic Press, Orlando, Florida. pp 157-239"
-
-    # Rp : surface roughness in microns
-    # """
     pressureCorrected = fluid.fluidApparatiProps[apparatus].pressureIn/fluid.pressureCritical
     return 55*pressureCorrected**(0.12-0.2*np.log10(surfaceRoughness))*\
         (-np.log10(pressureCorrected))**(-0.55)*qFlux**(0.67)*fluid.massMolar**(-0.5)
@@ -916,7 +937,7 @@ def KandlikarPHE(fluid,xmean,massFlux,D,q,tBubble,tDew):
     mu_f = AS.viscosity() #[Pa-s OR kg/m-s]
     heatCapacityLiq = AS.cpmass() #[J/kg-K]
     k_f = AS.conductivity() #[W/m/K]
-    heatTransferCoeffLiq = AS.hmass() #[J/kg]
+    enthalpyLiq = AS.hmass() #[J/kg]
 
     AS.update(CP.QT_INPUTS,1.0,tDew)
     rhoG = AS.rhomass() #[kg/m^3]
@@ -924,7 +945,7 @@ def KandlikarPHE(fluid,xmean,massFlux,D,q,tBubble,tDew):
 
     prandtlNumLiq = heatCapacityLiq * mu_f / k_f #[-]
 
-    h_LG = h_G-heatTransferCoeffLiq #[J/kg]
+    h_LG = h_G-enthalpyLiq #[J/kg]
     alpha_L = 0.023 * (massFlux*D/mu_f)**(0.8) * prandtlNumLiq**(0.4) * k_f / D #[W/m^2-K]
     Co=(rhoG/rhoL)**(0.5)*((1-xmean)/xmean)**(0.8)
     Bo=q/(massFlux*h_LG)

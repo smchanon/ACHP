@@ -187,7 +187,6 @@ class TestBrazedPlateHEX:
 
     def test__calculatePhi(self, brazedPlate):
         phi = brazedPlate._calculatePhi()
-        print(phi)
         assert(phi == 6.046372932790025)
 
     def test_calculateAreaWetted(self, brazedPlate, volume, calculatedAreaWetted, areaBetweenPorts):

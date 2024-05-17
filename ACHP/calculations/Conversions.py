@@ -92,15 +92,20 @@ class MassFlowConversions():
         """
         Mass flow units enum
         """
-        LBH = ("pounds per hour", 3600)
-        KGS = ("kgs per second", 0.45359237)
-        LBM = ("pounds per minute", 60)
+        LBH = "pounds per hour"
+        KGS = "kgs per second"
+        LBM = "pounds per minute"
+        KGH = "kgs per hour"
 
-        def __new__(cls, units, factor):
-            obj = object.__new__(cls)
-            obj._value_ = units
-            obj.factor = factor
-            return obj
+    def __init__(self):
+        self.conversions = {
+                        (self.Unit.KGS, self.Unit.LBH): 7936.6414387,
+                        (self.Unit.LBM, self.Unit.LBH): 60,
+                        (self.Unit.LBH, self.Unit.KGH): 0.45359237,
+                        (self.Unit.KGS, self.Unit.LBM): 132.27735731,
+                        (self.Unit.KGS, self.Unit.KGH): 3600,
+                        (self.Unit.LBM, self.Unit.KGH): 27.2155422
+                       }
 
     def convertMassFlow(self, unitFrom: Unit, unitTo: Unit, massFlow):
         """
@@ -122,7 +127,9 @@ class MassFlowConversions():
             mass flow in the unit you are converting to.
 
         """
-        return unitTo.factor*massFlow/unitFrom.factor
+        if (unitFrom, unitTo) in self.conversions:
+            return massFlow*self.conversions[(unitFrom, unitTo)]
+        return massFlow/self.conversions[(unitTo, unitFrom)]
 
 class VolumetricFlowConversions():
     """

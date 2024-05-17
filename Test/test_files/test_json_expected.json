@@ -1,0 +1,724 @@
+{
+    "test_name": [
+        {
+            "tempColdIn": 27.629373002977218,
+            "tempColdOut": 28.20188301544215,
+            "pressure": 15.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 293.1868703061052,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.72726269988027,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 24.576487403950637,
+            "tempColdOut": 25.82075989699075,
+            "pressure": 15.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 274.2540411764528,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.40970540107446,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.616354956084365,
+            "tempColdOut": 23.42748235685275,
+            "pressure": 15.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 254.03291680403305,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.144356418830853,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 18.762298053789834,
+            "tempColdOut": 21.003010611065065,
+            "pressure": 15.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 230.0288757512787,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.945809328512667,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 16.033583814207475,
+            "tempColdOut": 18.503286424975045,
+            "pressure": 15.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 199.1758830785398,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.842933002070026,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 13.453680663720263,
+            "tempColdOut": 15.94798735413957,
+            "pressure": 15.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 165.37114997595822,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.83626903022696,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 11.04831152421923,
+            "tempColdOut": 13.495017177083696,
+            "pressure": 15.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 138.54293697056323,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.863031899984037,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 8.8421258788523,
+            "tempColdOut": 11.333914250254736,
+            "pressure": 15.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 124.75631316113922,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.84628799153785,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 27.751328292678693,
+            "tempColdOut": 28.295418158636096,
+            "pressure": 20.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 293.9192915029402,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.74075929545762,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 24.762042328163204,
+            "tempColdOut": 25.967789030758013,
+            "pressure": 20.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 275.4447322276219,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.42783552736131,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.87492970188947,
+            "tempColdOut": 23.640569502211974,
+            "pressure": 20.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 255.92554249810308,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.165538062664382,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 19.109728789215126,
+            "tempColdOut": 21.30676190934588,
+            "pressure": 20.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 233.34797794051835,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.965824047912747,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 16.493508860343695,
+            "tempColdOut": 18.939906359768997,
+            "pressure": 20.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 204.92293622767264,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.853023316551855,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 14.058482873742605,
+            "tempColdOut": 16.561055943303757,
+            "pressure": 20.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 173.29459847122573,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.83125106515456,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 11.838358748296912,
+            "tempColdOut": 14.293762586536957,
+            "pressure": 20.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 146.00857256221596,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.857490639722982,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 9.862068387382749,
+            "tempColdOut": 12.325732637994008,
+            "pressure": 20.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 130.30124253382382,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.857390028741747,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 27.886989201786093,
+            "tempColdOut": 28.399329596941925,
+            "pressure": 25.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 294.7322306253557,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.755842453081698,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 24.971214076547426,
+            "tempColdOut": 26.13315312478869,
+            "pressure": 25.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 276.77944822490696,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.44846435924211,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 22.170164433619846,
+            "tempColdOut": 23.88281217604697,
+            "pressure": 25.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 258.04831736952076,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.190242209863527,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 19.511915917318504,
+            "tempColdOut": 21.654952488825586,
+            "pressure": 25.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 237.0286255387646,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.990640255927985,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 17.033973503538334,
+            "tempColdOut": 19.4448650913875,
+            "pressure": 25.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 211.42840969292072,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.868719933425155,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 14.779671267642186,
+            "tempColdOut": 17.28199369610263,
+            "pressure": 25.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 182.8497121417209,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.829996463542727,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 12.790786669258807,
+            "tempColdOut": 15.26985376476523,
+            "pressure": 25.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 156.97331449149107,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.84464873591594,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 11.095936396152524,
+            "tempColdOut": 13.542696613208477,
+            "pressure": 25.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 138.94365064623142,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.86291679817782,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 28.0360866278765,
+            "tempColdOut": 28.513369400313366,
+            "pressure": 30.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 295.6235447814705,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.772503868658987,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.20399027947599,
+            "tempColdOut": 26.316713864081407,
+            "pressure": 30.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 278.2559098127058,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.471655978490162,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 22.503651455239662,
+            "tempColdOut": 24.15515247192286,
+            "pressure": 30.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 260.40208061826615,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.218783338283913,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 19.97475477596231,
+            "tempColdOut": 22.05145952989028,
+            "pressure": 30.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 241.06718350351306,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.021216537003,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 17.66923854404297,
+            "tempColdOut": 20.027313878693235,
+            "pressure": 30.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 218.67345984113214,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.892423092693775,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 15.644123484634633,
+            "tempColdOut": 18.1286881434379,
+            "pressure": 30.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 194.18698478483887,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.83668799434315,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 13.945581197783156,
+            "tempColdOut": 16.447138904200813,
+            "pressure": 30.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 171.80464153312167,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.831941251245325,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 13.902421095715226,
+            "tempColdOut": 16.403522159716374,
+            "pressure": 30.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 171.23604696444738,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.832237115496184,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 28.199880559268024,
+            "tempColdOut": 28.638453941846024,
+            "pressure": 35.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 296.60017488884677,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.790908858677085,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.463346195729798,
+            "tempColdOut": 26.520668016903755,
+            "pressure": 35.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 279.89057786085795,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.49778291523569,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 22.882523366127714,
+            "tempColdOut": 24.462980073701317,
+            "pressure": 35.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 263.02584713869203,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.251989259942718,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 20.514160128199364,
+            "tempColdOut": 22.508444538259425,
+            "pressure": 35.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 245.53774194980934,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.059322665178968,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 18.430511914833744,
+            "tempColdOut": 20.710186638863775,
+            "pressure": 35.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 226.73137108031491,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.928012060869605,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 16.70181457065047,
+            "tempColdOut": 19.135558697052602,
+            "pressure": 35.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 207.46456936723268,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.858584949037038,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 16.556218778361597,
+            "tempColdOut": 18.998948297253037,
+            "pressure": 35.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 205.69241566985096,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.854630820340446,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 16.5561976840944,
+            "tempColdOut": 18.998928456685746,
+            "pressure": 35.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 205.6921574456705,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.85463027020961,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 28.38097815062156,
+            "tempColdOut": 28.776515373213556,
+            "pressure": 40.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 297.6769398098705,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.81138088562318,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.755361692577765,
+            "tempColdOut": 26.749602753113777,
+            "pressure": 40.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 281.71877957505234,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.52755661637792,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 23.32085955225199,
+            "tempColdOut": 24.81713771399245,
+            "pressure": 40.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 266.0029945226262,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.291393044372967,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.160565394077423,
+            "tempColdOut": 23.04964122030259,
+            "pressure": 40.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 250.6110025184205,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.108114614686997,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 19.373111843971515,
+            "tempColdOut": 21.535183150984153,
+            "pressure": 40.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 235.77718386252755,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.981883747420397,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 19.016878117411068,
+            "tempColdOut": 21.225862633608358,
+            "pressure": 40.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 232.4739945166378,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.960341863536428,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 19.01685734536511,
+            "tempColdOut": 21.225844512942217,
+            "pressure": 40.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 232.4737979439358,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.96034064778911,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 19.016856205328793,
+            "tempColdOut": 21.225843518420902,
+            "pressure": 40.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 232.47378715537974,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 28.96034058108836,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 28.583809047697684,
+            "tempColdOut": 28.930851628495077,
+            "pressure": 45.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 298.87921071478735,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.834461709017944,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 26.09088649628643,
+            "tempColdOut": 27.011746003448593,
+            "pressure": 45.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 283.8042980286173,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.5622254527662,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 23.84494036004736,
+            "tempColdOut": 25.2379291010551,
+            "pressure": 45.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 269.4917838176188,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.339824762115825,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.97032774273498,
+            "tempColdOut": 23.718965004682843,
+            "pressure": 45.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 256.6157314861707,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.173461198770894,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.317803231134064,
+            "tempColdOut": 23.180321684097976,
+            "pressure": 45.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 251.80468896251708,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.120454145487145,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.317784271786138,
+            "tempColdOut": 23.18030594853633,
+            "pressure": 45.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 251.80454589821724,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.120452647071033,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.317783003703937,
+            "tempColdOut": 23.18030489607628,
+            "pressure": 45.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 251.80453632946674,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.120452546852107,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 21.317782738821734,
+            "tempColdOut": 23.18030467623157,
+            "pressure": 45.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 251.80453433069684,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.120452525917756,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 28.815856353400363,
+            "tempColdOut": 29.10704144754999,
+            "pressure": 50.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 300.24994597528865,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.861062708014458,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 26.49002979588454,
+            "tempColdOut": 27.322362428147414,
+            "pressure": 50.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 286.26567432603053,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.60409591246315,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 24.50654442579139,
+            "tempColdOut": 25.765255912015448,
+            "pressure": 50.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 273.80352501811933,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.40291326670564,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 23.482298514090417,
+            "tempColdOut": 24.94705915434446,
+            "pressure": 50.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 267.0853611611768,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.30616204174146,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 23.48229731702196,
+            "tempColdOut": 24.947058191980886,
+            "pressure": 50.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 267.08535316176625,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.306161931730173,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 23.48229563185845,
+            "tempColdOut": 24.947056837222874,
+            "pressure": 50.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 267.08534190066035,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.306161776844704,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 23.48229563185845,
+            "tempColdOut": 24.947056837222874,
+            "pressure": 50.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 267.08534190066035,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.306161776844704,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 23.48229563185845,
+            "tempColdOut": 24.947056837222874,
+            "pressure": 50.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 267.08534190066035,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.306161776844704,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 29.090759893131008,
+            "tempColdOut": 29.3152548413193,
+            "pressure": 55.0,
+            "massFlow": 100.0,
+            "resistanceTotal": 301.86747422263664,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.892844464000802,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 26.994438039210138,
+            "tempColdOut": 27.71302482056535,
+            "pressure": 55.0,
+            "massFlow": 150.0,
+            "resistanceTotal": 289.34801094304635,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.65796612982996,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.52691786210073,
+            "tempColdOut": 26.57056995139027,
+            "pressure": 55.0,
+            "massFlow": 200.0,
+            "resistanceTotal": 280.28965993841746,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.504232661580033,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.526916265101477,
+            "tempColdOut": 26.570568698234354,
+            "pressure": 55.0,
+            "massFlow": 250.0,
+            "resistanceTotal": 280.2896499206846,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.504232499327316,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.526914988442115,
+            "tempColdOut": 26.57056769644629,
+            "pressure": 55.0,
+            "massFlow": 300.0,
+            "resistanceTotal": 280.2896419123909,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.50423236962922,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.526914988442115,
+            "tempColdOut": 26.57056769644629,
+            "pressure": 55.0,
+            "massFlow": 350.0,
+            "resistanceTotal": 280.2896419123909,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.50423236962922,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.526914988442115,
+            "tempColdOut": 26.57056769644629,
+            "pressure": 55.0,
+            "massFlow": 400.0,
+            "resistanceTotal": 280.2896419123909,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.50423236962922,
+            "massFlowHotIn": 1800.0
+        },
+        {
+            "tempColdIn": 25.526914988442115,
+            "tempColdOut": 26.57056769644629,
+            "pressure": 55.0,
+            "massFlow": 450.0,
+            "resistanceTotal": 280.2896419123909,
+            "tempHotIn": 30.000000000006594,
+            "tempHotOut": 29.50423236962922,
+            "massFlowHotIn": 1800.0
+        }
+    ]
+}

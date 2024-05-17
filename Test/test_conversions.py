@@ -99,10 +99,14 @@ class TestMassFlowConversions:
                                         dict(lbh=125, kgs=0.0157),
                                         dict(lbh=125732, kgs=15.8420),
                                         dict(lbh=15600, kgs=1.9656)],
-        "test_convertMassFlow_LBM2KGS": [dict(lbm=0, kgs=0),
-                                        dict(lbm=125, kgs=0.9450),
-                                        dict(lbm=1050, kgs=7.9379),
-                                        dict(lbm=0.16, kgs=0.0012)],
+        "test_convertMassFlow_LBH2LBM": [dict(lbh=0, lbm=0),
+                                        dict(lbh=125, lbm=2.0833),
+                                        dict(lbh=125732, lbm=2095.5333),
+                                        dict(lbh=15600, lbm=260)],
+        "test_convertMassFlow_LBH2KGH": [dict(lbh=0, kgh=0),
+                                        dict(lbh=2.20464, kgh=1),
+                                        dict(lbh=125, kgh=56.6990),
+                                        dict(lbh=200, kgh=90.7185)],
         "test_convertMassFlow_KGS2LBH": [dict(kgs=0, lbh=0),
                                         dict(kgs=0.0015, lbh=11.9050),
                                         dict(kgs=1, lbh=7936.6414),
@@ -111,21 +115,44 @@ class TestMassFlowConversions:
                                         dict(kgs=0.0015, lbm=0.1984),
                                         dict(kgs=1, lbm=132.2774),
                                         dict(kgs=0.59, lbm=78.0436)],
-        "test_convertMassFlow_LBH2LBM": [dict(lbh=0, lbm=0),
-                                        dict(lbh=125, lbm=2.0833),
-                                        dict(lbh=125732, lbm=2095.5333),
-                                        dict(lbh=15600, lbm=260)],
+        "test_convertMassFlow_KGS2KGH": [dict(kgs=0, kgh=0),
+                                        dict(kgs=0.0015, kgh=5.4),
+                                        dict(kgs=1, kgh=3600),
+                                        dict(kgs=0.59, kgh=2124)],
         "test_convertMassFlow_LBM2LBH": [dict(lbm=0, lbh=0),
                                         dict(lbm=125, lbh=7500),
                                         dict(lbm=1050, lbh=63000),
-                                        dict(lbm=0.16, lbh=9.6)]
+                                        dict(lbm=0.16, lbh=9.6)],
+        "test_convertMassFlow_LBM2KGS": [dict(lbm=0, kgs=0),
+                                        dict(lbm=125, kgs=0.9450),
+                                        dict(lbm=1050, kgs=7.9379),
+                                        dict(lbm=0.16, kgs=0.0012)],
+        "test_convertMassFlow_LBM2KGH": [dict(lbm=0, kgh=0),
+                                        dict(lbm=125, kgh=3401.9428),
+                                        dict(lbm=1050, kgh=28576.3193),
+                                        dict(lbm=0.16, kgh=4.3545)],
+        "test_convertMassFlow_KGH2LBH": [dict(kgh=0, lbh=0),
+                                        dict(kgh=125, lbh=275.5778),
+                                        dict(kgh=3600, lbh=7936.6414),
+                                        dict(kgh=2200, lbh=4850.1698)],
+        "test_convertMassFlow_KGH2KGS": [dict(kgh=0, kgs=0),
+                                        dict(kgh=125, kgs=0.0347),
+                                        dict(kgh=3600, kgs=1),
+                                        dict(kgh=2200, kgs=0.6111)],
+        "test_convertMassFlow_KGH2LBM": [dict(kgh=0, lbm=0),
+                                        dict(kgh=125, lbm=4.593),
+                                        dict(kgh=3600, lbm=132.2774),
+                                        dict(kgh=2200, lbm=80.8362)]
         }
 
     def test_convertMassFlow_LBH2KGS(self, lbh, kgs, mfc):
         assert(round(mfc.convertMassFlow(mfc.Unit.LBH, mfc.Unit.KGS, lbh), 4) == kgs)
 
-    def test_convertMassFlow_LBM2KGS(self, lbm, kgs, mfc):
-        assert(round(mfc.convertMassFlow(mfc.Unit.LBM, mfc.Unit.KGS, lbm), 4) == kgs)
+    def test_convertMassFlow_LBH2LBM(self, lbh, lbm, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.LBH, mfc.Unit.LBM, lbh), 4) == lbm)
+
+    def test_convertMassFlow_LBH2KGH(self, lbh, kgh, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.LBH, mfc.Unit.KGH, lbh), 4) == kgh)
 
     def test_convertMassFlow_KGS2LBH(self, kgs, lbh, mfc):
         assert(round(mfc.convertMassFlow(mfc.Unit.KGS, mfc.Unit.LBH, kgs), 4) == lbh)
@@ -133,11 +160,26 @@ class TestMassFlowConversions:
     def test_convertMassFlow_KGS2LBM(self, kgs, lbm, mfc):
         assert(round(mfc.convertMassFlow(mfc.Unit.KGS, mfc.Unit.LBM, kgs), 4) == lbm)
 
-    def test_convertMassFlow_LBH2LBM(self, lbh, lbm, mfc):
-        assert(round(mfc.convertMassFlow(mfc.Unit.LBH, mfc.Unit.LBM, lbh), 4) == lbm)
+    def test_convertMassFlow_KGS2KGH(self, kgs, kgh, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.KGS, mfc.Unit.KGH, kgs), 4) == kgh)
 
     def test_convertMassFlow_LBM2LBH(self, lbm, lbh, mfc):
         assert(round(mfc.convertMassFlow(mfc.Unit.LBM, mfc.Unit.LBH, lbm), 4) == lbh)
+
+    def test_convertMassFlow_LBM2KGS(self, lbm, kgs, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.LBM, mfc.Unit.KGS, lbm), 4) == kgs)
+
+    def test_convertMassFlow_LBM2KGH(self, lbm, kgh, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.LBM, mfc.Unit.KGH, lbm), 4) == kgh)
+
+    def test_convertMassFlow_KGH2LBH(self, kgh, lbh, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.KGH, mfc.Unit.LBH, kgh), 4) == lbh)
+
+    def test_convertMassFlow_KGH2KGS(self, kgh, kgs, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.KGH, mfc.Unit.KGS, kgh), 4) == kgs)
+
+    def test_convertMassFlow_KGH2LBM(self, kgh, lbm, mfc):
+        assert(round(mfc.convertMassFlow(mfc.Unit.KGH, mfc.Unit.LBM, kgh), 4) == lbm)
 
 class TestVolumetricFlowConversions:
     params = {

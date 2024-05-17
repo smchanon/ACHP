@@ -27,7 +27,7 @@ class Evaporator():
         self.type = "Evaporator"
         self.logger = logging.getLogger(self.type)
         self.refrigerant = refrigerant
-        self.refrigerant.fluidApparatiProps[self.type] = FluidApparatusProps(enthalpyIn=enthalpyInR, 
+        self.refrigerant.fluidApparatiProps[self.type] = FluidApparatusProps(enthalpyIn=enthalpyInR,
                                                                              pressureIn=pressureSatR)
         self.finnedTube = finnedTube
         self.massFlowR = massFlowR
@@ -47,6 +47,8 @@ class Evaporator():
         self.entropySatVaporR = self.refrigerant.calculateEntropy(ThermoProps.QT, 1.0, self.tempSatVaporR)
         self.tempSatMean = (self.tempSatLiquidR + self.tempSatVaporR)/2 #TODO: used only once, is it necessary here??
         self.latentHeat = self.enthalpySatVaporR - self.enthalpySatLiquidR
+        self.refrigerant.fluidApparatiProps[self.type].set("tempDew", self.tempSatVaporR)
+        self.refrigerant.fluidApparatiProps[self.type].set("tempBubble", self.tempSatLiquidR)
 
         #refrigerant values for evaporator
         self.qualityInR = (enthalpyInR - self.enthalpySatLiquidR)/\
@@ -263,9 +265,7 @@ class Evaporator():
         self.dryFractionTwoPhase = dryWetSegment.f_dry
         self.tempOutTwoPhaseAir = dryWetSegment.Tout_a
 
-        #TODO: change twoPhaseDensity to use Fluid instead of abstractState
-        rhoMean = twoPhaseDensity(self.refrigerant, self.qualityInR, self.qualityOutTwoPhase,
-                    self.tempSatVaporR,self.tempSatLiquidR,slipModel='Zivi')
+        rhoMean = twoPhaseDensity(self.refrigerant, self.qualityInR, self.qualityOutTwoPhase, self.type)
         self.chargeTwoPhase = rhoMean*self.lengthFractionTwoPhase*self.volumeMeanR
         self.pressureDropTwoPhaseR = self.calculatePressureDropR()
         if self.verbosity > 7:

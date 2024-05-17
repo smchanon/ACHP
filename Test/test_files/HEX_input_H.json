@@ -1,0 +1,98 @@
+{"inputs": [
+        {
+            "testName": "test_test",
+            "hot":
+                {
+                    "fluidName": "R744",
+                    "pressureIn":
+                        {
+                            "values":
+                                [1.0, 5, 60
+                                ],
+                            "unit": "BAR"
+                        },
+                    "h_or_T":
+                        {
+                            "values":
+                                [233.150, 300
+                                ],
+                            "unit": "KJKG",
+                            "enthalpyIn": true
+                        },
+                    "massFlowIn":
+                        {
+                            "values":
+                                [1069, 2000
+                                ],
+                            "unit": "KGH"
+                        }
+                },
+                "cold":
+                    {
+                        "fluidName": "MEG::50%",
+                        "pressureIn":
+                            {
+                                "values":
+                                    [350000, 100000
+                                    ],
+                                "unit": "PA"
+                            },
+                        "h_or_T":
+                            {
+                                "values":
+                                    [233150, 300000
+                                    ],
+                                "unit": "JKG",
+                                "enthalpyIn": true
+                            },
+                        "massFlowIn":
+                            {
+                                "values":
+                                    [106900, 2000
+                                    ],
+                                "unit": "KGS"
+                            }
+                    },
+                "HEX":
+                    {
+                        "type": "Coaxial-HEX",
+                        "HEX_values":
+                            {
+                                "Coaxial-HEX":
+                                    {
+                                        "innerTubeInnerDiameter":0.59,
+                                        "innerTubeOuterDiameter":0.61,
+                                        "outerTubeInnerDiameter":0.65,
+                                        "length":5.43,
+                                        "conductivity": 0.045
+                                    },
+                                "Plate-HEX":
+                                    {
+                                        "centerlineDistanceShort": null,
+                                        "centerlineDistanceLong": null,
+                                        "numPlates": null,
+                                        "thickness": null,
+                                        "amplitude": null,
+                                        "wavelength": null,
+                                        "inclinationAngle": null,
+                                        "moreChannels": null,
+                                        "volumeChannelSingle": null,
+                                        "conductivity": null
+                                    }
+                            }
+                    },
+                "values":
+                    {
+                        "x-axis":
+                            [30, 50, 100, 150, 200, 250, 300, 350, 400, 450
+                            ],
+                        "y-axis":
+                            [10, 20, 30, 40, 50, 60
+                            ],
+                        "to_be_extracted":
+                            ["tempHotOut", "tempHotIn"
+                            ]
+                    }
+        }
+    ]
+}

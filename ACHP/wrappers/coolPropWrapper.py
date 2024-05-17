@@ -162,6 +162,7 @@ class AbstractStateWrapper():
         """
         if self.abstractState.has_melting_line():
             return self.abstractState.melting_line(CP.iT, CP.iP, pressure)
+        return -1
 
     def getIsobaricExpansionCoefficient(self):
         """
@@ -893,3 +894,24 @@ class PropsSIWrapper():
 
         """
         return PropsSI('T', 'P', pressure, 'Q', quality, fluid.name)
+
+    def calculateTemperatureFromPandH(self, fluid, pressure, enthalpy):
+        """
+        Calculates temperature of saved fluid from pressure and vapor quality
+
+        Parameters
+        ----------
+        fluid: string
+            name of fluid
+        pressure : float
+            pressure of fluid in Pa
+        enthalpy : float
+            enthalpy of fluid (unitless)
+
+        Returns
+        -------
+        temperature : float
+            temperature of fluid in J/kg
+
+        """
+        return PropsSI('T', 'P', pressure, 'H', enthalpy, fluid.name)
